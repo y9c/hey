@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"flag"
@@ -11,10 +11,23 @@ import (
 	"time"
 
 	"github.com/mdp/qrterminal"
+	"github.com/spf13/cobra"
 )
 
 var (
-	h bool
+	openCmd = &cobra.Command{
+		Use:   "open",
+		Short: "A brief description of your command",
+		Long: `A longer description that spans multiple lines and likely contains examples
+and usage of using your command. For example:
+
+Cobra is a CLI library for Go that empowers applications.
+This application is a tool to generate the needed files
+to quickly create a Cobra application.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			qrcode("hello")
+		},
+	}
 
 	a       string
 	p       string
@@ -23,7 +36,8 @@ var (
 )
 
 func init() {
-	flag.BoolVar(&h, "h", false, "this help")
+	rootCmd.AddCommand(openCmd)
+	// RootCmd.AddCommand(collapseCmd)
 
 	rand.Seed(time.Now().UnixNano())
 	port := fmt.Sprintf(":%d", 10000+rand.Intn(1000))
@@ -36,55 +50,51 @@ func init() {
 	flag.Usage = usage
 }
 
-func main() {
-	flag.Parse()
+func test() {
 
-	if h {
-		flag.Usage()
+	if flag.NArg() == 0 {
+		content = "./"
+	} else if flag.NArg() == 1 {
+		content = flag.Args()[0]
 	} else {
-		if flag.NArg() == 0 {
-			content = "./"
-		} else if flag.NArg() == 1 {
-			content = flag.Args()[0]
-		} else {
-			content = flag.Args()[0]
-			fmt.Println("More than one argument passed, only the first one was used!")
-		}
-		fi, err := os.Stat(content)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		switch mode := fi.Mode(); {
-		case mode.IsDir():
-			url = fmt.Sprintf("%s%s", a, p)
-		case mode.IsRegular():
-			file := filepath.Base(content)
-			url = fmt.Sprintf("%s%s/%s", a, p, file)
-		}
-		dir, err := filepath.Abs(filepath.Dir(content))
-		if err != nil {
-			panic(err)
-		}
-
-		// QR code
-		config := qrterminal.Config{
-			Level:     qrterminal.M,
-			Writer:    os.Stdout,
-			BlackChar: qrterminal.BLACK,
-			WhiteChar: qrterminal.WHITE,
-			QuietZone: 1,
-		}
-		qrterminal.GenerateWithConfig(url, config)
-		fmt.Printf("\n\n---------------\n%s\n---------------\n", url)
-
-		// httpserver
-		http.Handle("/", http.FileServer(http.Dir(dir)))
-		if err := http.ListenAndServe(p, nil); err != nil {
-			panic(err)
-		}
-
+		content = flag.Args()[0]
+		fmt.Println("More than one argument passed, only the first one was used!")
 	}
+	fi, err := os.Stat(content)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	switch mode := fi.Mode(); {
+	case mode.IsDir():
+		url = fmt.Sprintf("%s%s", a, p)
+	case mode.IsRegular():
+		file := filepath.Base(content)
+		url = fmt.Sprintf("%s%s/%s", a, p, file)
+	}
+	dir, err := filepath.Abs(filepath.Dir(content))
+	if err != nil {
+		panic(err)
+	}
+	// httpserver
+	http.Handle("/", http.FileServer(http.Dir(dir)))
+	if err := http.ListenAndServe(p, nil); err != nil {
+		panic(err)
+	}
+}
+
+func qrcode(url string) {
+	// QR code
+	config := qrterminal.Config{
+		Level:     qrterminal.M,
+		Writer:    os.Stdout,
+		BlackChar: qrterminal.BLACK,
+		WhiteChar: qrterminal.WHITE,
+		QuietZone: 1,
+	}
+	qrterminal.GenerateWithConfig(url, config)
+	fmt.Printf("\n\n---------------\n%s\n---------------\n", url)
+
 }
 
 func usage() {
