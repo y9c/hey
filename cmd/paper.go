@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/golang/text/width"
 	"github.com/spf13/cobra"
 )
 
 // testCmd represents the test command
 var paperCmd = &cobra.Command{
 	Use:   "paper",
-	Short: "random HeLab member for next week Journal Club",
+	Short: "Random HeLab member for next week Journal Club",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:`,
 
@@ -48,7 +50,25 @@ func readLines(path string) ([]string, error) {
 }
 
 func randomMember(s []string) {
-	for i, line := range s {
-		fmt.Println(i, line)
+	for _, line := range s {
+		fillSpace := strings.Repeat(" ", 10-GetWidthUTF8String(line))
+		fmt.Printf("|%s%s|\n", line, fillSpace)
 	}
+}
+
+func GetWidthUTF8String(s string) int {
+	size := 0
+	for _, runeValue := range s {
+		p := width.LookupRune(runeValue)
+		if p.Kind() == width.EastAsianWide {
+			size += 2
+			continue
+		}
+		if p.Kind() == width.EastAsianNarrow {
+			size += 1
+			continue
+		}
+		panic("cannot determine!")
+	}
+	return size
 }
