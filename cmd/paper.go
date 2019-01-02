@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -50,10 +51,18 @@ func readLines(path string) ([]string, error) {
 }
 
 func randomMember(s []string) {
+	randomCount := make([]int, len(s))
 	for _, line := range s {
 		fillSpace := strings.Repeat(" ", 10-GetWidthUTF8String(line))
 		fmt.Printf("|%s%s|\n", line, fillSpace)
 	}
+	for i, _ := range randomCount {
+		for j := 1; j <= 10; j++ {
+			randomCount[i] += rand.Intn(5)
+			fmt.Println(randomCount)
+		}
+	}
+	fmt.Println(randomCount)
 }
 
 func GetWidthUTF8String(s string) int {
