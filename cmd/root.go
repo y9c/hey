@@ -10,9 +10,16 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "hey",
 	Short: "HeY may short for Yc @ Helab",
-	Long:  `Some useful commands that might be useless`,
+	Long: `Some useful commands that might be useless
+  form Yc @ Helab
+  ---------------`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Do Stuff Here
+		if len(args) < 1 {
+			// return errors.New("requires at least one sub command")
+			cmd.Help()
+			os.Exit(0)
+		}
 	},
 }
 
