@@ -70,7 +70,7 @@ func randomMember(s []string) {
 	}
 
 	// TODO: dynamic update
-	showUI(randomCount)
+	showUI(s)
 	// runSpinner(2)
 }
 
@@ -102,34 +102,78 @@ func getWidthUTF8String(s string) int {
 	return size
 }
 
-func showUI(m map[string]int) {
+func getMaxValueOfMap(m map[string]int) int {
+	maxNumber := 0
+	for _, n := range m {
+		if n > maxNumber {
+			maxNumber = n
+		}
+	}
+	return maxNumber
+}
+
+func showUI(s []string) {
 	err := ui.Init()
 	if err != nil {
 		panic(err)
 	}
 	defer ui.Close()
 
+	nameGauge := make(map[string]*ui.Gauge, len(s))
+	nameCounts := make(map[string]int, len(s))
+
 	y := 1
-	for n, p := range m {
+	for _, n := range s {
 		g := ui.NewGauge()
-		g.Percent = p
-		g.Width = 50
+		g.Percent = 0
+		g.Width = 80
 		g.Height = 3
 		g.Y = y
 		g.BorderLabel = n
-		g.BarColor = ui.ColorRed
+		g.BarColor = ui.ColorCyan
 		g.BorderFg = ui.ColorWhite
 		g.BorderLabelFg = ui.ColorCyan
-		ui.Render(g)
 		y += 3
+		nameGauge[n] = g
 	}
 
+	updateG := func(count int) {
+		if getMaxValueOfMap(nameCounts) < 100 {
+			for n, g := range nameGauge {
+				r := rand.Intn(10)
+				if nameCounts[n]+r > 100 {
+					nameCounts[n] = 100
+				} else {
+					nameCounts[n] += r
+				}
+				g.Percent += r
+				if g.Percent >= 100 {
+					g.BarColor = ui.ColorRed
+				}
+				ui.Render(g)
+			}
+		} else {
+			for _, g := range nameGauge {
+				ui.Render(g)
+			}
+		}
+		count++
+	}
+
+	tickerCount := 1
 	uiEvents := ui.PollEvents()
+	ticker := time.NewTicker(time.Second * 1).C
 	for {
-		e := <-uiEvents
-		switch e.ID {
-		case "q", "<C-c>":
-			return
+		select {
+		case e := <-uiEvents:
+			switch e.ID {
+			case "q", "<C-c>":
+				return
+			}
+		case <-ticker:
+			updateG(tickerCount)
+			// tickerCount++
 		}
 	}
+
 }

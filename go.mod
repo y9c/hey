@@ -15,7 +15,6 @@ require (
 	github.com/nsf/termbox-go v0.0.0-20181027232701-60ab7e3d12ed // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3 // indirect
-	github.com/tj/go-spin v1.1.0 // indirect
-	golang.org/x/net v0.0.0-20181220203305-927f97764cc3 // indirect
+	golang.org/x/sys v0.0.0-20190102155601-82a175fd1598 // indirect
 	golang.org/x/text v0.3.0 // indirect
 )
