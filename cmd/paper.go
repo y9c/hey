@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var inputMemberFile string
+
 // testCmd represents the test command
 var paperCmd = &cobra.Command{
 	Use:   "paper",
@@ -24,11 +26,10 @@ var paperCmd = &cobra.Command{
 and usage of using your command. For example:`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Paper called")
-		fmt.Println("============")
-		lines, err := readLines("member.txt")
+
+		lines, err := readLines(inputMemberFile)
 		if err != nil {
-			log.Fatalf("readLines: %s", err)
+			log.Fatalf("%s\nCan not find input file. Pass the input with -i argument.", err)
 		}
 		randomMember(lines)
 	},
@@ -36,6 +37,7 @@ and usage of using your command. For example:`,
 
 func init() {
 	rootCmd.AddCommand(paperCmd)
+	paperCmd.Flags().StringVarP(&inputMemberFile, "input", "i", "./member.txt", "input name list file")
 }
 
 func readLines(path string) ([]string, error) {
@@ -54,24 +56,18 @@ func readLines(path string) ([]string, error) {
 }
 
 func randomMember(s []string) {
-	randomCount := make(map[string]int)
+	// show members list
+	fmt.Println("Members List")
+	fmt.Println("============")
 	for _, n := range s {
 		fillSpace := strings.Repeat(" ", 10-getWidthUTF8String(n))
 		fmt.Printf("|%s%s|\n", n, fillSpace)
-		randomCount[n] = 0
-	}
-	for l := 1; l <= 10; l++ {
-		for n, _ := range randomCount {
-			randomCount[n] += rand.Intn(12)
-			// progressBar := strings.Repeat("=", randomCount[n])
-			// fmt.Printf("\033[2K\r%s  %s", n, progressBar)
-			// time.Sleep(time.Second / 10)
-		}
 	}
 
+	// TODO: add loading
+	// runSpinner(2)
 	// TODO: dynamic update
 	showUI(s)
-	// runSpinner(2)
 }
 
 func runSpinner(ts int) {
