@@ -121,12 +121,13 @@ func showUI(s []string) {
 
 	nameGauge := make(map[string]*ui.Gauge, len(s))
 	nameCounts := make(map[string]int, len(s))
+	randSteps := []int{0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 4}
 
 	y := 1
 	for _, n := range s {
 		g := ui.NewGauge()
 		g.Percent = 0
-		g.Width = 80
+		g.Width = 100
 		g.Height = 3
 		g.Y = y
 		g.BorderLabel = n
@@ -140,13 +141,14 @@ func showUI(s []string) {
 	updateG := func(count int) {
 		if getMaxValueOfMap(nameCounts) < 100 {
 			for n, g := range nameGauge {
-				r := rand.Intn(10)
+				r := randSteps[rand.Intn(len(randSteps))]
 				if nameCounts[n]+r > 100 {
 					nameCounts[n] = 100
+					g.Percent = 100
 				} else {
 					nameCounts[n] += r
+					g.Percent += r
 				}
-				g.Percent += r
 				if g.Percent >= 100 {
 					g.BarColor = ui.ColorRed
 				}
@@ -162,7 +164,7 @@ func showUI(s []string) {
 
 	tickerCount := 1
 	uiEvents := ui.PollEvents()
-	ticker := time.NewTicker(time.Second * 1).C
+	ticker := time.NewTicker(time.Second / 5).C
 	for {
 		select {
 		case e := <-uiEvents:

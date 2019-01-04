@@ -10,7 +10,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "hey",
 	Short: "HeY may short for Yc @ Helab",
-	Long: `Some useful commands that might be useless
+	Long: `Some useful/useless commands
   form Yc @ Helab
   ---------------`,
 	Run: func(cmd *cobra.Command, args []string) {
