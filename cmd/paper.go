@@ -127,9 +127,10 @@ func showUI(s []string) {
 		g.Height = 3
 		g.Y = y
 		g.BorderLabel = n
-		g.BarColor = ui.ColorCyan
+		g.BorderLabelFg = ui.ColorWhite | ui.AttrBold
+		g.BarColor = ui.ColorBlue
 		g.BorderFg = ui.ColorWhite
-		g.BorderLabelFg = ui.ColorCyan
+		g.PercentColorHighlighted = ui.ColorWhite | ui.AttrBold
 		y += 3
 		nameGauge[n] = g
 	}
