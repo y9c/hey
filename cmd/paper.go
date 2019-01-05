@@ -123,7 +123,7 @@ func showUI(s []string) {
 	for _, n := range s {
 		g := ui.NewGauge()
 		g.Percent = 0
-		g.Width = 100
+		g.Width = ui.TermWidth() - 1
 		g.Height = 3
 		g.Y = y
 		g.BorderLabel = n
@@ -138,6 +138,9 @@ func showUI(s []string) {
 	updateG := func(count int) {
 		if getMaxValueOfMap(nameCounts) < 100 {
 			for n, g := range nameGauge {
+				// TODO: fix rescale bug
+				// auto resacle, but the termianl will flash...
+				// g.Width = ui.TermWidth()
 				r := randSteps[rand.Intn(len(randSteps))]
 				if nameCounts[n]+r > 100 {
 					nameCounts[n] = 100
