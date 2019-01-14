@@ -93,12 +93,9 @@ func getIPs() (ips []string) {
 func parsePath(path string) (string, string) {
 
 	// file path
-	fileDir, err := filepath.Abs(filepath.Dir(path))
-	if err != nil {
-		panic(err)
-	}
 
 	var fileBase string
+	var fileDir string
 
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -107,8 +104,18 @@ func parsePath(path string) (string, string) {
 	switch mode := fi.Mode(); {
 	case mode.IsDir():
 		fileBase = ""
+		if dir, err := filepath.Abs(path); err != nil {
+			panic(err)
+		} else {
+			fileDir = dir
+		}
 	case mode.IsRegular():
 		fileBase = filepath.Base(path)
+		if dir, err := filepath.Abs(filepath.Dir(path)); err != nil {
+			panic(err)
+		} else {
+			fileDir = dir
+		}
 	}
 
 	return fileDir, fileBase
