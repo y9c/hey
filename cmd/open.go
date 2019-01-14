@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"flag"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -15,72 +15,49 @@ import (
 )
 
 var (
+	inputAddress string
+	inputPort    string
+
 	openCmd = &cobra.Command{
 		Use:   "open",
 		Short: "Open file in server with browser",
 		Long: `Open file in server with browser
 The url is generated for the file/directory
 The QR code is for openning file in browser`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return errors.New("requires at least one arg")
+			}
+			return nil
+		},
 		Run: func(cmd *cobra.Command, args []string) {
-			qrcode("hello")
+			urlBase := fmt.Sprintf("%s:%s", inputAddress, inputPort)
+			//url2show = fmt.Sprintf("http://%s:%s/%s", url, file)
+			fileDir, fileBase := parsePath(args[0])
+			qrCode(urlBase, fileBase)
+			serveFiles(urlBase, fileDir)
 		},
 	}
-
-	a       string
-	p       string
-	content string
-	url     string
 )
 
 func init() {
+
 	rootCmd.AddCommand(openCmd)
-	// RootCmd.AddCommand(collapseCmd)
+
+	defaultAddress := getIPs()[0]
+	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
 	rand.Seed(time.Now().UnixNano())
-	port := fmt.Sprintf(":%d", 10000+rand.Intn(1000))
-	flag.StringVar(&p, "p", port, "port")
+	defaultPort := fmt.Sprintf("%d", 10000+rand.Intn(1000))
+	openCmd.Flags().StringVarP(&inputPort, "port", "p", defaultPort, "set port number")
 
-	address := fmt.Sprintf("http://%s", getIPs()[0])
-	flag.StringVar(&a, "a", address, "address")
-
-	// 改变默认的 Usage
-	flag.Usage = usage
 }
 
-func test() {
+func qrCode(urlBase, fileBase string) {
 
-	if flag.NArg() == 0 {
-		content = "./"
-	} else if flag.NArg() == 1 {
-		content = flag.Args()[0]
-	} else {
-		content = flag.Args()[0]
-		fmt.Println("More than one argument passed, only the first one was used!")
-	}
-	fi, err := os.Stat(content)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	switch mode := fi.Mode(); {
-	case mode.IsDir():
-		url = fmt.Sprintf("%s%s", a, p)
-	case mode.IsRegular():
-		file := filepath.Base(content)
-		url = fmt.Sprintf("%s%s/%s", a, p, file)
-	}
-	dir, err := filepath.Abs(filepath.Dir(content))
-	if err != nil {
-		panic(err)
-	}
-	// httpserver
-	http.Handle("/", http.FileServer(http.Dir(dir)))
-	if err := http.ListenAndServe(p, nil); err != nil {
-		panic(err)
-	}
-}
-
-func qrcode(url string) {
+	url := fmt.Sprintf("http://%s/%s", urlBase, fileBase)
+	fmt.Println("\nScan the QR code to open file in mobile phone, or open the this link in browser.")
+	fmt.Printf("\n---------------\n%s\n---------------\n", url)
 	// QR code
 	config := qrterminal.Config{
 		Level:     qrterminal.M,
@@ -90,17 +67,7 @@ func qrcode(url string) {
 		QuietZone: 1,
 	}
 	qrterminal.GenerateWithConfig(url, config)
-	fmt.Printf("\n\n---------------\n%s\n---------------\n", url)
 
-}
-
-func usage() {
-	fmt.Fprintf(os.Stderr, `hey version: 0.0.1
-Usage: hey_open [-h] [-a address] [-p port] [file/dir]
-
-Options:
-`)
-	flag.PrintDefaults()
 }
 
 func getIPs() (ips []string) {
@@ -120,4 +87,39 @@ func getIPs() (ips []string) {
 		}
 	}
 	return ips
+
+}
+
+func parsePath(path string) (string, string) {
+
+	// file path
+	fileDir, err := filepath.Abs(filepath.Dir(path))
+	if err != nil {
+		panic(err)
+	}
+
+	var fileBase string
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		fmt.Println(err)
+	}
+	switch mode := fi.Mode(); {
+	case mode.IsDir():
+		fileBase = ""
+	case mode.IsRegular():
+		fileBase = filepath.Base(path)
+	}
+
+	return fileDir, fileBase
+
+}
+
+func serveFiles(urlBase, fileDir string) {
+
+	http.Handle("/", http.FileServer(http.Dir(fileDir)))
+	if err := http.ListenAndServe(urlBase, nil); err != nil {
+		panic(err)
+	}
+
 }
