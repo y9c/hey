@@ -60,7 +60,7 @@ func qrCode(urlBase, fileBase string) {
 	fmt.Printf("\n---------------\n%s\n---------------\n", url)
 	// QR code
 	config := qrterminal.Config{
-		Level:     qrterminal.M,
+		Level:     qrterminal.L,
 		Writer:    os.Stdout,
 		BlackChar: qrterminal.BLACK,
 		WhiteChar: qrterminal.WHITE,
