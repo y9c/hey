@@ -140,9 +140,9 @@ func showUI(s []string) {
 			for n, g := range nameGauge {
 				// TODO: fix rescale bug
 				// auto resacle, but the termianl will flash...
-				if count%10 == 0 {
-					g.Width = ui.TermWidth()
-				}
+				// if count%10 == 0 {
+				// g.Width = ui.TermWidth()
+				// }
 				r := randSteps[rand.Intn(len(randSteps))]
 				if nameCounts[n]+r > 100 {
 					nameCounts[n] = 100
