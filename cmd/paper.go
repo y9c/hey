@@ -11,7 +11,6 @@ import (
 
 	ui "github.com/gizak/termui"
 
-	"github.com/briandowns/spinner"
 	"github.com/golang/text/width"
 	"github.com/spf13/cobra"
 )
@@ -70,17 +69,6 @@ func randomMember(s []string) {
 	showUI(s)
 }
 
-func runSpinner(ts int) {
-	t := time.Duration(ts)
-	spin := spinner.New(spinner.CharSets[35], 100*time.Millisecond) // Build our new spinner
-	spin.Prefix = "Random Helab Member: "                           // Prefix text before the spinner
-	spin.Suffix = "   ....."                                        // Append text after the spinner
-	spin.Color("green")                                             // Set the spinner color to red
-	spin.Start()                                                    // Start the spinner
-	time.Sleep(t * time.Second)                                     // Run for some time to simulate work
-	spin.Stop()
-}
-
 func getWidthUTF8String(s string) int {
 	size := 0
 	for _, runeValue := range s {
@@ -136,14 +124,17 @@ func showUI(s []string) {
 	}
 
 	updateG := func(count int) {
+		// TODO: fix rescale bug
+		// auto resacle, but the termianl will flicker...
+		// seems that ui.TermWidth() is the source the bug
+		// current fix work in deepin terminal but not alacritty.
+		// if count%10 == 0 {
+		// }
+		termwidth := ui.TermWidth()
 		if getMaxValueOfMap(nameCounts) < 100 {
 			for n, g := range nameGauge {
-				// TODO: fix rescale bug
-				// auto resacle, but the termianl will flash...
-				if count%10 == 0 {
-					g.Width = ui.TermWidth()
-				}
 				r := randSteps[rand.Intn(len(randSteps))]
+				g.Width = termwidth
 				if nameCounts[n]+r > 100 {
 					nameCounts[n] = 100
 					g.Percent = 100
@@ -161,7 +152,6 @@ func showUI(s []string) {
 				ui.Render(g)
 			}
 		}
-		count++
 	}
 
 	tickerCount := 1
