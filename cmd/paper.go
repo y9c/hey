@@ -133,6 +133,14 @@ func showUI(s []string) {
 		termwidth := ui.TermWidth()
 		if getMaxValueOfMap(nameCounts) < 100 {
 			for n, g := range nameGauge {
+<<<<<<< HEAD
+=======
+				// TODO: fix rescale bug
+				// auto resacle, but the termianl will flash...
+				// if count%10 == 0 {
+				// g.Width = ui.TermWidth()
+				// }
+>>>>>>> 99becef0a88d957ac180e6210ce3ae4083a3b3fc
 				r := randSteps[rand.Intn(len(randSteps))]
 				g.Width = termwidth
 				if nameCounts[n]+r > 100 {
