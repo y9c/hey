@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 		// Do Stuff Here
 		if len(args) < 1 {
 			// return errors.New("requires at least one sub command")
-			cmd.Help()
+			_ = cmd.Help()
 			os.Exit(0)
 		}
 	},

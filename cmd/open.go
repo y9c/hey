@@ -44,6 +44,7 @@ func init() {
 
 	rootCmd.AddCommand(openCmd)
 
+	fmt.Println(getIPs())
 	defaultAddress := getIPs()[0]
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
