@@ -44,7 +44,6 @@ func init() {
 
 	rootCmd.AddCommand(openCmd)
 
-	fmt.Println(getIPs())
 	defaultAddress := getIPs()[0]
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
@@ -100,7 +99,10 @@ func parsePath(path string) (string, string) {
 
 	fi, err := os.Stat(path)
 	if err != nil {
-		fmt.Println(err)
+		if os.IsNotExist(err) {
+			fmt.Printf("file (%s) does not exist!\n", path)
+		}
+		os.Exit(1)
 	}
 	switch mode := fi.Mode(); {
 	case mode.IsDir():
