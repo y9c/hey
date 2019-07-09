@@ -124,22 +124,16 @@ func showUI(s []string) {
 	}
 
 	updateG := func(count int) {
-		// TODO: fix rescale bug
-		// auto resacle, but the termianl will flicker...
-		// seems that ui.TermWidth() is the source the bug
-		// current fix work in deepin terminal but not alacritty.
-		// if count%10 == 0 {
-		// }
-		termwidth := ui.TermWidth()
 		if getMaxValueOfMap(nameCounts) < 100 {
 			for n, g := range nameGauge {
 				// TODO: fix rescale bug
-				// auto resacle, but the termianl will flash...
-				// if count%10 == 0 {
-				// g.Width = ui.TermWidth()
-				// }
+				// auto resacle, but the termianl will flicker...
+				// seems that ui.TermWidth() is the source the bug
+				// current fix work in deepin terminal but not alacritty.
+				if count%10 == 0 {
+					g.Width = ui.TermWidth()
+				}
 				r := randSteps[rand.Intn(len(randSteps))]
-				g.Width = termwidth
 				if nameCounts[n]+r > 100 {
 					nameCounts[n] = 100
 					g.Percent = 100
