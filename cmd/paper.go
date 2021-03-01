@@ -56,12 +56,14 @@ func readLines(path string) ([]string, error) {
 
 func randomMember(s []string) {
 	// show members list
-	fmt.Println("Members List")
 	fmt.Println("============")
+	fmt.Println("Members List")
+	fmt.Println("------------")
 	for _, n := range s {
 		fillSpace := strings.Repeat(" ", 10-getWidthUTF8String(n))
 		fmt.Printf("|%s%s|\n", n, fillSpace)
 	}
+	fmt.Println("============")
 
 	// TODO: add loading
 	// runSpinner(2)
