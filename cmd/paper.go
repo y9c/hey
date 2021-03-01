@@ -132,9 +132,9 @@ func showUI(s []string) {
 				// auto resacle, but the termianl will flicker...
 				// seems that ui.TermWidth() is the source the bug
 				// current fix work in deepin terminal but not alacritty.
-				if count%10 == 0 {
-					g.Width = ui.TermWidth()
-				}
+				// if count%10 == 0 {
+				// 	g.Width = ui.TermWidth()
+				// }
 				r := randSteps[rand.Intn(len(randSteps))]
 				if nameCounts[n]+r > 100 {
 					nameCounts[n] = 100
