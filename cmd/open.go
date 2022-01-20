@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jackpal/gateway"
@@ -45,8 +46,17 @@ func init() {
 
 	rootCmd.AddCommand(openCmd)
 
-	// defaultAddress := getIPs()[0]
-	defaultAddress := getGateway()
+	defaultGateway := getGateway()
+
+	pre := strings.Split(defaultGateway, ",")[0]
+
+	allAddress := getIPs()
+	defaultAddress := allAddress[0]
+	for _, address := range allAddress {
+		if strings.HasPrefix(address, pre) {
+			defaultAddress = address
+		}
+	}
 
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
