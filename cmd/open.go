@@ -46,11 +46,10 @@ func init() {
 
 	rootCmd.AddCommand(openCmd)
 
+	allAddress := getIPs()
 	defaultGateway := getGateway()
 
-	pre := strings.Split(defaultGateway, ",")[0]
-
-	allAddress := getIPs()
+	pre := defaultGateway[:strings.LastIndex(defaultGateway, ".")]
 	defaultAddress := allAddress[0]
 	for _, address := range allAddress {
 		if strings.HasPrefix(address, pre) {
