@@ -68,8 +68,9 @@ func init() {
 func qrCode(urlBase, fileBase string) {
 
 	url := fmt.Sprintf("http://%s/%s", urlBase, fileBase)
-	fmt.Println("\nScan the QR code to open file in mobile phone, or open the this link in browser.")
-	fmt.Printf("\n---------------\n%s\n---------------\n", url)
+	fmt.Println("")
+	fmt.Println("Scan the QR code to open file in mobile phone, or open the this link in browser.")
+	fmt.Println("")
 	// QR code
 	config := qrterminal.Config{
 		Level:     qrterminal.L,
@@ -79,6 +80,8 @@ func qrCode(urlBase, fileBase string) {
 		QuietZone: 1,
 	}
 	qrterminal.GenerateWithConfig(url, config)
+	// URL link
+	fmt.Printf("\n---------------\n%s\n---------------\n", url)
 
 }
 
