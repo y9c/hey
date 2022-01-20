@@ -7,6 +7,7 @@ require (
 	github.com/gizak/termui v0.0.0-20181228210747-b136f68f55f1
 	github.com/golang/text v0.3.0
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/jackpal/gateway v1.0.7 // indirect
 	github.com/mattn/go-runewidth v0.0.4 // indirect
 	github.com/mdp/qrterminal v1.0.1
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect

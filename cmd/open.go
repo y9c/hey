@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/jackpal/gateway"
 	"github.com/mdp/qrterminal"
 	"github.com/spf13/cobra"
 )
@@ -44,7 +45,9 @@ func init() {
 
 	rootCmd.AddCommand(openCmd)
 
-	defaultAddress := getIPs()[0]
+	// defaultAddress := getIPs()[0]
+	defaultAddress := getGateway()
+
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
 	rand.Seed(time.Now().UnixNano())
@@ -88,6 +91,14 @@ func getIPs() (ips []string) {
 	}
 	return ips
 
+}
+
+func getGateway() string {
+	gw, err := gateway.DiscoverGateway()
+	if err != nil {
+		panic(err)
+	}
+	return gw.String()
 }
 
 func parsePath(path string) (string, string) {
