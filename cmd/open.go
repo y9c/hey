@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/jackpal/gateway"
-	"github.com/mdp/qrterminal"
+	"github.com/skip2/go-qrcode"
+
 	"github.com/spf13/cobra"
 )
 
@@ -68,20 +69,28 @@ func init() {
 func qrCode(urlBase, fileBase string) {
 
 	url := fmt.Sprintf("http://%s/%s", urlBase, fileBase)
-	fmt.Println("")
-	fmt.Println("Scan the QR code to open file in mobile phone, or open the this link in browser.")
-	fmt.Println("")
+	fmt.Printf("\nScan the QR code to open file in mobile phone, or open the this link in browser.\n")
+	//	"github.com/mdp/qrterminal/v3"
 	// QR code
-	config := qrterminal.Config{
-		Level:     qrterminal.L,
-		Writer:    os.Stdout,
-		BlackChar: qrterminal.BLACK,
-		WhiteChar: qrterminal.WHITE,
-		QuietZone: 1,
+	// config := qrterminal.Config{
+	// 	Level:     qrterminal.L,
+	// 	Writer:    os.Stdout,
+	// 	BlackChar: qrterminal.BLACK,
+	// 	WhiteChar: qrterminal.WHITE,
+	// 	QuietZone: 1,
+	// }
+	// qrterminal.GenerateWithConfig(url, config)
+
+	// QR code
+	q, err := qrcode.New(url, qrcode.Low)
+	if err != nil {
+		fmt.Printf("%v\n", err)
 	}
-	qrterminal.GenerateWithConfig(url, config)
+	fmt.Printf(q.ToSmallString(false))
+
+	sepLine := strings.Repeat("━", len(url) + 2)
 	// URL link
-	fmt.Printf("\n---------------\n%s\n---------------\n", url)
+	fmt.Printf("\n┏%s┓\n┃ %s ┃\n┗%s┛\n", sepLine, url, sepLine)
 
 }
 
