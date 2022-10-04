@@ -88,7 +88,7 @@ func qrCode(urlBase, fileBase string) {
 	}
 	fmt.Printf(q.ToSmallString(false))
 
-	sepLine := strings.Repeat("━", len(url) + 2)
+	sepLine := strings.Repeat("━", len(url)+2)
 	// URL link
 	fmt.Printf("\n┏%s┓\n┃ %s ┃\n┗%s┛\n", sepLine, url, sepLine)
 
