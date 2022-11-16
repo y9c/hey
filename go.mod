@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/gizak/termui v0.0.0-20181228210747-b136f68f55f1
 	github.com/golang/text v0.3.0
+	github.com/ivanpirog/coloredcobra v1.0.1
 	github.com/jackpal/gateway v1.0.7
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cobra v1.5.0
@@ -14,7 +15,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
-	github.com/ivanpirog/coloredcobra v1.0.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect

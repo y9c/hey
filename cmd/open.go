@@ -61,7 +61,7 @@ func init() {
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
 	rand.Seed(time.Now().UnixNano())
-	defaultPort := fmt.Sprintf("%d", 50000+rand.Intn(1000))
+	defaultPort := fmt.Sprintf("%d", 60000+rand.Intn(3000))
 	openCmd.Flags().StringVarP(&inputPort, "port", "p", defaultPort, "set port number")
 
 }
