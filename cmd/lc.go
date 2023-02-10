@@ -14,7 +14,7 @@ var (
 		Short: "Quicker way to count line number",
 		Long:  `Better than linux build-in wc and gzip format will be supported`,
 		Run: func(cmd *cobra.Command, args []string) {
-			countLines(args[0])
+			quickCountLines(args[0])
 		},
 	}
 )
@@ -23,7 +23,7 @@ func init() {
 	rootCmd.AddCommand(lcCmd)
 }
 
-func countLines(filePath string) {
+func quickCountLines(filePath string) {
 
 	file, err := os.Open(filePath)
 	if err != nil {
