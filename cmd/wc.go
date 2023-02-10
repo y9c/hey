@@ -73,7 +73,7 @@ func countLines(filePaths []string) {
 			fmt.Printf("%s\t%d\n", filePath, wordCount)
 		}
 
-		if lineFlag == true {
+		if lineFlag == true || wordFlag == false {
 			scanner := bufio.NewScanner(reader)
 
 			lineCount := 0
