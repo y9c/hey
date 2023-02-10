@@ -11,12 +11,15 @@ import (
 )
 
 var inputFile string
+var wordFlag bool
+var lineFlag bool
 
 var (
 	wcCmd = &cobra.Command{
 		Use:   "wc",
 		Short: "Count line number (gzip suportted, multiple files support)",
 		Long:  `Better than linux build-in wc and gzip format will be supported`,
+		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			countLines(args)
 		},
@@ -25,6 +28,8 @@ var (
 
 func init() {
 	rootCmd.AddCommand(wcCmd)
+	wcCmd.Flags().BoolVarP(&lineFlag, "lines", "l", false, "Count the number of lines in the file(s)")
+	wcCmd.Flags().BoolVarP(&wordFlag, "words", "w", false, "Count the number of words in the file(s)")
 	// wcCmd.Flags().StringVarP(&inputFile, "input", "i", "", "input name list file")
 	// wcCmd.MarkFlagRequired("input")
 }
@@ -51,19 +56,37 @@ func countLines(filePaths []string) {
 			reader = bufio.NewReader(file)
 		}
 
-		scanner := bufio.NewScanner(reader)
-		scanner.Split(bufio.ScanLines)
+		if wordFlag == true {
+			scanner := bufio.NewScanner(reader)
+			scanner.Split(bufio.ScanWords)
 
-		lineCount := 0
-		for scanner.Scan() {
-			lineCount++
+			wordCount := 0
+			for scanner.Scan() {
+				wordCount++
+			}
+
+			if err := scanner.Err(); err != nil {
+				fmt.Printf("Error scanning file %s: %v\n", filePath, err)
+				continue
+			}
+
+			fmt.Printf("%s\t%d\n", filePath, wordCount)
 		}
 
-		if err := scanner.Err(); err != nil {
-			fmt.Println("Error scanning file:", err)
-			return
-		}
+		if lineFlag == true {
+			scanner := bufio.NewScanner(reader)
 
-		fmt.Printf("%s\t%d\n", filePath, lineCount)
+			lineCount := 0
+			for scanner.Scan() {
+				lineCount++
+			}
+
+			if err := scanner.Err(); err != nil {
+				fmt.Printf("Error scanning file %s: %v\n", filePath, err)
+				continue
+			}
+
+			fmt.Printf("%s\t%d\n", filePath, lineCount)
+		}
 	}
 }

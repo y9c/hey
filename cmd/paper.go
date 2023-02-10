@@ -35,8 +35,8 @@ and usage of using your command. For example:`,
 }
 
 func init() {
-	rootCmd.AddCommand(paperCmd)
-	paperCmd.Flags().StringVarP(&inputMemberFile, "input", "i", "./member.txt", "input name list file")
+	//rootCmd.AddCommand(paperCmd)
+	//paperCmd.Flags().StringVarP(&inputMemberFile, "input", "i", "./member.txt", "input name list file")
 }
 
 func readLines(path string) ([]string, error) {
