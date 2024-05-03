@@ -18,6 +18,11 @@ endif
 all: build-go-binary
 release: build-release-binary
 
+.PHONY: linux
+linux:
+	@echo "building binary for linux 64bit..."
+	@GOOS=linux GOARCH=amd64 go build -ldflags $(BUILD_FLAGS) -o ./hey && upx ./hey
+
 .PHONY: build-go-binary
 build-go-binary:
 	@echo "building binary..."

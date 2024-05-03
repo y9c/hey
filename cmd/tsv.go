@@ -44,6 +44,18 @@ func toSuperscript(num int) string {
 	return result
 }
 
+func processColumns(fields []string, maxColumns int) []string {
+	if len(fields) <= maxColumns {
+		return fields
+	}
+	halfColumns := maxColumns / 2
+	overflow := maxColumns % 2
+	firstPart := fields[:halfColumns+overflow]
+	lastPart := fields[len(fields)-halfColumns:]
+	middle := []string{"..."} // Ellipsis with no color
+	return append(append(firstPart, middle...), lastPart...)
+}
+
 func renderTable(filename string) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -56,17 +68,16 @@ func renderTable(filename string) {
 	var rows [][]string
 	var headers []string
 
-	// Read the headers
+	// Read and color the headers
 	if scanner.Scan() {
 		headers = strings.Split(scanner.Text(), "\t")
 		for i, header := range headers {
-			// headers[i] = tml.Sprintf("<blue>%s</blue><red>%s</red>", header, toSuperscript(i+1))
 			headers[i] = tml.Sprintf("<blue>%s</blue>", header) + toSuperscript(i+1)
 		}
-		rows = append(rows, headers) // Append processed headers to rows
+		processedHeaders := processColumns(headers, maxColumns)
+		rows = append(rows, processedHeaders)
 	}
 
-	// Read and process data rows
 	var firstRows [][]string
 	var additionalRowScanned bool
 	halfRows := maxRows / 2
@@ -74,16 +85,21 @@ func renderTable(filename string) {
 
 	for i := 0; scanner.Scan() && i < halfRows+overflow; i++ {
 		fields := strings.Split(scanner.Text(), "\t")
-		firstRows = append(firstRows, fields)
+		firstRows = append(firstRows, processColumns(fields, maxColumns))
 	}
 
 	additionalRowScanned = scanner.Scan()
 	var lastRows [][]string
 	if additionalRowScanned {
 		lastRows = findLastLines(file, halfRows)
+		for i := range lastRows {
+			lastRows[i] = processColumns(lastRows[i], maxColumns)
+		}
 	}
 
 	rows = append(rows, firstRows...)
+
+	// Add an ellipsis row if needed
 	if additionalRowScanned && len(lastRows) > 0 {
 		ellipsisRow := make([]string, len(rows[0]))
 		for i := range ellipsisRow {
