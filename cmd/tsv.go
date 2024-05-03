@@ -8,7 +8,13 @@ import (
 	"strings"
 
 	"github.com/aquasecurity/table"
+	"github.com/liamg/tml"
 	"github.com/spf13/cobra"
+)
+
+var (
+	maxRows    int
+	maxColumns int
 )
 
 var tsvCmd = &cobra.Command{
@@ -23,6 +29,19 @@ var tsvCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(tsvCmd)
+	tsvCmd.Flags().IntVarP(&maxRows, "rows", "r", 10, "Maximum number of rows to display")
+	tsvCmd.Flags().IntVarP(&maxColumns, "columns", "c", 10, "Maximum number of columns to display")
+}
+
+func toSuperscript(num int) string {
+	superscripts := []string{"⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"}
+	result := ""
+	for num > 0 {
+		digit := num % 10
+		result = superscripts[digit] + result
+		num /= 10
+	}
+	return result
 }
 
 func renderTable(filename string) {
@@ -40,48 +59,47 @@ func renderTable(filename string) {
 	// Read the headers
 	if scanner.Scan() {
 		headers = strings.Split(scanner.Text(), "\t")
-		rows = append(rows, headers) // Append headers to rows
-	}
-
-	// Read up to the first 5 data rows
-	var firstFive [][]string
-	for scanner.Scan() {
-		fields := strings.Split(scanner.Text(), "\t")
-		firstFive = append(firstFive, fields)
-		if len(firstFive) == 5 {
-			break
+		for i, header := range headers {
+			// headers[i] = tml.Sprintf("<blue>%s</blue><red>%s</red>", header, toSuperscript(i+1))
+			headers[i] = tml.Sprintf("<blue>%s</blue>", header) + toSuperscript(i+1)
 		}
+		rows = append(rows, headers) // Append processed headers to rows
 	}
 
-	// Seek and find the last 5 rows
-	var lastFive [][]string
-	if scanner.Scan() { // Check if there's more data beyond the first five
-		lastFive = findLastLines(file, 5)
+	// Read and process data rows
+	var firstRows [][]string
+	var additionalRowScanned bool
+	halfRows := maxRows / 2
+	overflow := maxRows % 2
+
+	for i := 0; scanner.Scan() && i < halfRows+overflow; i++ {
+		fields := strings.Split(scanner.Text(), "\t")
+		firstRows = append(firstRows, fields)
 	}
 
-	// Append first five to rows
-	rows = append(rows, firstFive...)
+	additionalRowScanned = scanner.Scan()
+	var lastRows [][]string
+	if additionalRowScanned {
+		lastRows = findLastLines(file, halfRows)
+	}
 
-	// Check if ellipsis is needed
-	if len(firstFive) == 5 && len(lastFive) > 0 {
-		ellipsisRow := make([]string, len(headers))
+	rows = append(rows, firstRows...)
+	if additionalRowScanned && len(lastRows) > 0 {
+		ellipsisRow := make([]string, len(rows[0]))
 		for i := range ellipsisRow {
 			ellipsisRow[i] = "..."
 		}
 		rows = append(rows, ellipsisRow)
 	}
 
-	// Append last five to rows
-	rows = append(rows, lastFive...)
+	rows = append(rows, lastRows...)
 
-	// Create the table
 	t := table.New(os.Stdout)
-	t.SetHeaders(headers...) // Set the header
+	t.SetHeaders(rows[0]...)
 	t.SetHeaderStyle(table.StyleBold)
 	t.SetLineStyle(table.StyleBlue)
 	t.SetDividers(table.UnicodeRoundedDividers)
 
-	// Add rows to the table, skipping the header from addition
 	for _, row := range rows[1:] {
 		t.AddRow(row...)
 	}
@@ -91,15 +109,10 @@ func renderTable(filename string) {
 
 func findLastLines(file *os.File, numLines int) [][]string {
 	var lines [][]string
-	fileSize, _ := file.Seek(0, io.SeekEnd)
 	bufSize := 4096
-	if fileSize < int64(bufSize) {
-		bufSize = int(fileSize)
-	}
-
+	fileSize, _ := file.Seek(0, io.SeekEnd)
 	buf := make([]byte, bufSize)
 
-	// Start reading from the end
 	for position := fileSize; position > 0 && len(lines) < numLines; {
 		if position < int64(bufSize) {
 			bufSize = int(position)
@@ -110,18 +123,12 @@ func findLastLines(file *os.File, numLines int) [][]string {
 		content := string(buf[:bytesRead])
 		tempLines := strings.Split(content, "\n")
 
-		// Process lines in reverse order since we're reading chunks backwards
 		for i := len(tempLines) - 1; i >= 0; i-- {
 			if tempLines[i] != "" && len(lines) < numLines {
 				fields := strings.Split(tempLines[i], "\t")
 				lines = append([][]string{fields}, lines...)
 			}
 		}
-	}
-
-	// Ensure not to include any header-like row again
-	if len(lines) > numLines {
-		lines = lines[len(lines)-numLines:]
 	}
 
 	return lines
