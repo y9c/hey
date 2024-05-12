@@ -12,38 +12,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var colnameCmd = &cobra.Command{
-	Use:   "colname [filename]",
-	Short: "Transpose and format table",
-	Long:  `Reads column names and transposes only the first few columns for the first two data rows plus header from a file or stdin. Supports gzip.`,
-	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		var input io.Reader = os.Stdin
-		if len(args) == 1 && args[0] != "-" {
-			file, err := os.Open(args[0])
-			if err != nil {
-				fmt.Println("Error opening file:", err)
-				return
-			}
-			defer file.Close()
-			if strings.HasSuffix(args[0], ".gz") {
-				gzipReader, err := gzip.NewReader(file)
+var (
+	separator  string
+	colnameCmd = &cobra.Command{
+		Use:   "colname [filename]",
+		Short: "Transpose and format table",
+		Long:  `Reads column names and transposes only the first few columns for the first two data rows plus header from a file or stdin. Supports gzip and configurable separators.`,
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			var input io.Reader = os.Stdin
+			if len(args) == 1 && args[0] != "-" {
+				file, err := os.Open(args[0])
 				if err != nil {
-					fmt.Println("Error opening gzip file:", err)
+					fmt.Println("Error opening file:", err)
 					return
 				}
-				defer gzipReader.Close()
-				input = gzipReader
-			} else {
-				input = file
+				defer file.Close()
+				if strings.HasSuffix(args[0], ".gz") {
+					gzipReader, err := gzip.NewReader(file)
+					if err != nil {
+						fmt.Println("Error opening gzip file:", err)
+						return
+					}
+					defer gzipReader.Close()
+					input = gzipReader
+				} else {
+					input = file
+				}
 			}
-		}
-		processTable(input)
-	},
-}
+			processTable(input)
+		},
+	}
+)
 
 func init() {
 	rootCmd.AddCommand(colnameCmd)
+	colnameCmd.Flags().StringVarP(&separator, "separator", "s", "\t", "Column separator (default is tab)")
 }
 
 func processTable(input io.Reader) {
@@ -52,7 +56,7 @@ func processTable(input io.Reader) {
 	var headers []string
 
 	if scanner.Scan() {
-		headers = strings.Split(scanner.Text(), "\t")
+		headers = strings.Split(scanner.Text(), separator)
 		for idx, header := range headers {
 			transposed = append(transposed, []string{fmt.Sprintf("%d", idx+1), header})
 		}
@@ -63,7 +67,7 @@ func processTable(input io.Reader) {
 		if dataRowCount >= 2 {
 			break
 		}
-		row := strings.Split(scanner.Text(), "\t")
+		row := strings.Split(scanner.Text(), separator)
 		for i := 0; i < len(transposed) && i < len(row); i++ {
 			transposed[i] = append(transposed[i], row[i])
 		}
