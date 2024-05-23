@@ -63,10 +63,3 @@ func reverseComplement(sequence string, complements map[rune]rune) string {
 	}
 	return revComp.String()
 }
-
-func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
