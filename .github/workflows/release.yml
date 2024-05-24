@@ -1,4 +1,4 @@
-name: Go Release
+name: Go Build, Release, and Deploy to GitHub Pages
 
 on:
   push:
@@ -7,15 +7,15 @@ on:
       - master
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  build-release-and-deploy:
+    name: Build, Release, and Deploy
     runs-on: ubuntu-latest
 
     steps:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: '1.19' # Specify the Go version.
+          go-version: '1.19' # Using Go version 1.19
 
       - name: Check out code
         uses: actions/checkout@v3
@@ -24,18 +24,33 @@ jobs:
         run: go get -v ./...
 
       - name: Build binary
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o hey
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o hey
 
-      - name: Upload Release Asset
-        id: upload-release-asset
+      - name: Copy binary to public directory for GitHub Pages
+        run: |
+          mkdir -p public
+          cp hey public/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: hey
           tag_name: latest
-          release_name: Latest Release
+          release_name: Latest Release of Hey
+          body: |
+            ## Latest Release of Hey
+            Download the latest version of Hey here. This binary is built for Linux and updated automatically with each push to the main branch.
+
+            **Public Download Link**: https://y9c.github.io/hey/hey
+            - **Filename**: hey
+            - **Platform**: Linux (AMD64)
           overwrite: true
-          draft: false
-          prerelease: false
-          body: 'This is the latest release. Please see the changelog.'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
