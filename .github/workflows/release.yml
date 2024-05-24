@@ -27,6 +27,12 @@ jobs:
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o hey
 
+      - name: Install UPX
+        run: sudo apt-get install -y upx
+
+      - name: Compress binary with UPX
+        run: upx --best --lzma hey
+
       - name: Copy binary to public directory for GitHub Pages
         run: |
           mkdir -p public
