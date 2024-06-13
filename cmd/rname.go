@@ -40,34 +40,34 @@ var InstrumentIDs = []InstrumentInfo{
 var FCIDs = []InstrumentInfo{
 	// Include the FCIDs here as per the previous listing
 	// iSeq 100 standard output flow cells
-	{"BNT[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
-	{"BRB[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
-	{"BPC[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
-	{"BPG[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
-	{"BPA[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
-	{"BPL[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
-	{"BTR[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100", "Standard Output"}},
+	{"BNT[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
+	{"BRB[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
+	{"BPC[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
+	{"BPG[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
+	{"BPA[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
+	{"BPL[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
+	{"BTR[A-Z0-9]{5}-[A-Z0-9]{4}", []string{"iSeq 100 Standard Output"}},
 
 	// MiniSeq output types
 	{"000H[A-Z0-9]{5}", []string{"MiniSeq", "Mid or High Output"}},
 
 	// MiSeq specific flow cells
-	{"D[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Nano"}},
-	{"G[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Micro"}},
-	{"A[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Standard v2"}},
-	{"B[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Standard"}},
-	{"C[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Standard"}},
-	{"J[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Standard"}},
-	{"K[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Standard"}},
-	{"L[A-Z0-9]{4}", []string{"MiSeq", "MiSeq Standard"}},
+	{"D[A-Z0-9]{4}", []string{"MiSeq Nano"}},
+	{"G[A-Z0-9]{4}", []string{"MiSeq Micro"}},
+	{"A[A-Z0-9]{4}", []string{"MiSeq Standard v2"}},
+	{"B[A-Z0-9]{4}", []string{"MiSeq Standard"}},
+	{"C[A-Z0-9]{4}", []string{"MiSeq Standard"}},
+	{"J[A-Z0-9]{4}", []string{"MiSeq Standard"}},
+	{"K[A-Z0-9]{4}", []string{"MiSeq Standard"}},
+	{"L[A-Z0-9]{4}", []string{"MiSeq Standard"}},
 
 	// NextSeq specific flow cells
-	{"[A-Z0-9]{5}AF[A-Z0-9]{2}", []string{"NextSeq 500", "NextSeq 550", "Mid Output"}},
-	{"[A-Z0-9]{5}AG[A-Z0-9]{2}", []string{"NextSeq 500", "NextSeq 550", "High Output"}},
-	{"[A-Z0-9]{5}BG[A-Z0-9]{2}", []string{"NextSeq 500", "NextSeq 550", "High Output"}},
-	{"[A-Z0-9]{7}M5", []string{"NextSeq 1000", "NextSeq 2000", "P1 or P2"}},
-	{"[A-Z0-9]{7}HV", []string{"NextSeq 1000", "NextSeq 2000", "P3"}},
-	{"[A-Z0-9]{7}NX", []string{"NextSeq 1000", "NextSeq 2000", "XLEAP-SBS P4"}},
+	{"[A-Z0-9]{5}AF[A-Z0-9]{2}", []string{"NextSeq 500/550 Mid Output"}},
+	{"[A-Z0-9]{5}AG[A-Z0-9]{2}", []string{"NextSeq 500/550 High Output"}},
+	{"[A-Z0-9]{5}BG[A-Z0-9]{2}", []string{"NextSeq 500/550 High Output"}},
+	{"[A-Z0-9]{7}M5", []string{"NextSeq 1000/2000 P1 or P2"}},
+	{"[A-Z0-9]{7}HV", []string{"NextSeq 1000/2000 P3"}},
+	{"[A-Z0-9]{7}NX", []string{"NextSeq 1000/2000 XLEAP-SBS P4"}},
 
 	// HiSeq specific flow cells
 	{"[A-Z0-9]{5}BC[A-Z0-9]{2}", []string{"HiSeq 2500", "Rapid Run (2-lane) v2"}},
@@ -78,11 +78,11 @@ var FCIDs = []InstrumentInfo{
 	{"[A-Z0-9]{5}CC[A-Z0-9]{2}", []string{"HiSeq X", "(8-lane)"}},
 
 	// NovaSeq specific flow cells
-	{"[A-Z0-9]{5}DR[A-Z0-9]{2}", []string{"NovaSeq 6000", "SP or S1"}},
-	{"[A-Z0-9]{5}DM[A-Z0-9]{2}", []string{"NovaSeq 6000", "S2"}},
-	{"[A-Z0-9]{5}DS[A-Z0-9]{2}", []string{"NovaSeq 6000", "S4"}},
-	{"[A-Z0-9]{6}LT3", []string{"NovaSeq X", "NovaSeq X Plus", "10B"}},
-	{"[A-Z0-9]{6}LT4", []string{"NovaSeq X", "NovaSeq X Plus", "25B"}},
+	{"[A-Z0-9]{5}DR[A-Z0-9]{2}", []string{"NovaSeq 6000 SP or S1"}},
+	{"[A-Z0-9]{5}DM[A-Z0-9]{2}", []string{"NovaSeq 6000 S2"}},
+	{"[A-Z0-9]{5}DS[A-Z0-9]{2}", []string{"NovaSeq 6000 S4"}},
+	{"[A-Z0-9]{6}LT3", []string{"NovaSeq X Plus 10B"}},
+	{"[A-Z0-9]{6}LT4", []string{"NovaSeq X Plus 25B"}},
 	{"[A-Z0-9]{6}LT[A-Z0-9]", []string{"NovaSeq X", "NovaSeq X Plus", "Unknown flow cell"}},
 
 	// Catch-all for unknown cases
@@ -112,20 +112,14 @@ the instrument and flow cell type from predefined lists.`,
 		instrumentRun := inputParts[1]
 		flowcellID := inputParts[2]
 
-		fmt.Println("Input:")
-		fmt.Printf("Instrument ID: %s\n", instrumentID)
-		fmt.Printf("Instrument Run: %s\n", instrumentRun)
-		fmt.Printf("Run ID: %s\n", flowcellID)
-		fmt.Println()
-
-		fmt.Println("Inferred:")
-		printInstrumentType(instrumentID)
-		fmt.Println("Instrument Run: ", instrumentRun)
-		printFlowCellType(flowcellID)
+		// eg: Instrument ID: HWI-M00001 ➜ Miseq (note that parsed result is colored in green)
+		fmt.Printf("Instrument ID  : %s ➜ %s\n", instrumentID, printInstrumentType(instrumentID))
+		fmt.Printf("Instrument Run : %s\n", instrumentRun)
+		fmt.Printf("Flow cell ID   : %s ➜ %s\n", flowcellID, printFlowCellType(flowcellID))
 	},
 }
 
-func printInstrumentType(instrumentID string) {
+func printInstrumentType(instrumentID string) string {
 	for _, instrument := range InstrumentIDs {
 		regex, err := regexp.Compile("^" + instrument.Regex + "$")
 		if err != nil {
@@ -133,14 +127,13 @@ func printInstrumentType(instrumentID string) {
 			continue
 		}
 		if regex.MatchString(instrumentID) {
-			fmt.Printf("Instrument Type: %v\n", instrument.Description)
-			return
+			return strings.Join(instrument.Description, ", ")
 		}
 	}
-	fmt.Println("Instrument Type: Unknown")
+	return "Unknown"
 }
 
-func printFlowCellType(flowcellID string) {
+func printFlowCellType(flowcellID string) string {
 	for _, fcid := range FCIDs {
 		regex, err := regexp.Compile("^" + fcid.Regex + "$")
 		if err != nil {
@@ -148,11 +141,10 @@ func printFlowCellType(flowcellID string) {
 			continue
 		}
 		if regex.MatchString(flowcellID) {
-			fmt.Printf("Flow Cell Type: %v\n", fcid.Description)
-			return
+			return strings.Join(fcid.Description, ", ")
 		}
 	}
-	fmt.Println("Flow Cell Type: Unknown")
+	return "Unknown"
 }
 
 func init() {
