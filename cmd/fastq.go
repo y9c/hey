@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"bufio"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -11,12 +13,16 @@ import (
 )
 
 var fastqCmd = &cobra.Command{
-	Use:   "fastq <filename>",
+	Use:   "fastq [filename]",
 	Short: "Colorize and visualize FASTQ",
 	Long:  `Colorize the nucleotides in a FASTQ file and visualize quality scores with block characters`,
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		renderFASTQ(args[0])
+		if len(args) > 0 {
+			renderFASTQ(args[0])
+		} else {
+			renderFASTQ("-")
+		}
 	},
 }
 
@@ -25,14 +31,39 @@ func init() {
 }
 
 func renderFASTQ(filename string) {
-	file, err := os.Open(filename)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer file.Close()
+	var reader io.Reader
 
-	scanner := bufio.NewScanner(file)
+	if filename == "" || filename == "-" {
+		// Read from stdin if no filename is provided or if filename is "-"
+		reader = os.Stdin
+	} else if strings.HasSuffix(filename, ".gz") {
+		// Open gzipped file
+		file, err := os.Open(filename)
+		if err != nil {
+			fmt.Println("Error opening file:", err)
+			return
+		}
+		defer file.Close()
+
+		gzipReader, err := gzip.NewReader(file)
+		if err != nil {
+			fmt.Println("Error opening gzip file:", err)
+			return
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	} else {
+		// Open plain text file
+		file, err := os.Open(filename)
+		if err != nil {
+			fmt.Println("Error opening file:", err)
+			return
+		}
+		defer file.Close()
+		reader = file
+	}
+
+	scanner := bufio.NewScanner(reader)
 	lineCount := 0
 
 	for scanner.Scan() {
