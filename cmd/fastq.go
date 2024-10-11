@@ -72,11 +72,13 @@ func renderFASTQ(filename string) {
 
 		switch lineCount % 4 {
 		case 1: // Sequence ID line
-			tml.Printf("<italic>%s</italic>\n", line)
+			// trim the leading '@' character
+			tml.Printf("<italic>%s</italic>\n", line[1:])
 		case 2: // Sequence line
 			fmt.Println(colorizeSequence(line))
 		case 3: // "+" line
-			fmt.Println(line)
+			// fmt.Println(line)
+			// skip the + line, do nothing
 		case 0: // Quality score line
 			fmt.Println(visualizeQuality(line))
 		}
