@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"bufio"
+	"compress/gzip"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strings"
 
@@ -14,6 +18,7 @@ type InstrumentInfo struct {
 	Description []string
 }
 
+// Instrument and flow cell information (populate with existing data)
 var InstrumentIDs = []InstrumentInfo{
 	// Include the InstrumentIDs here as per the previous listing
 	{"HWUSI", []string{"Genome Analyzer IIx"}},
@@ -89,21 +94,30 @@ var FCIDs = []InstrumentInfo{
 	{".*", []string{"Unknown Machine", "Unknown flow cell"}},
 }
 
-// rnameCmd represents the rname command
 var rnameCmd = &cobra.Command{
-	Use:   "rname <instrumentID>:<instrumentRun>:<flowcellID>",
+	Use:   "rname [filename or rname string]",
 	Short: "Identify instrument and flow cell type based on IDs",
-	Long: `This command takes a combined string of instrumentID and flowcellID separated by a hyphen (:) and identifies 
-the instrument and flow cell type from predefined lists.`,
-	Args: cobra.ExactArgs(1), // This command requires exactly one argument
+	Long: `This command takes an input which could be:
+    - A filename of a FASTQ file (.gz or plain)
+    - A direct input rname string
+    - Reads from stdin if data is piped in.
+    It extracts the first record name and identifies the instrument and flow cell type.`,
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		input := args[0]
-
-		if strings.HasPrefix(input, "@") {
-			input = input[1:] // Remove the leading '@' if present
+		var input string
+		if len(args) > 0 {
+			input = args[0]
 		}
-		inputParts := strings.Split(input, ":")
-		if len(input) < 3 {
+
+		rname, err := extractRname(input)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+
+		// Split the extracted rname into its components
+		inputParts := strings.Split(rname, ":")
+		if len(inputParts) < 3 {
 			fmt.Println("Invalid input format. Please enter as <instrumentID>:<instrumentRun>:<flowcellID>")
 			return
 		}
@@ -112,11 +126,68 @@ the instrument and flow cell type from predefined lists.`,
 		instrumentRun := inputParts[1]
 		flowcellID := inputParts[2]
 
-		// eg: Instrument ID: HWI-M00001 ➜ Miseq (note that parsed result is colored in green)
+		// Display the instrument and flow cell information
 		fmt.Printf("Instrument ID  : %s ➜ %s\n", instrumentID, printInstrumentType(instrumentID))
 		fmt.Printf("Instrument Run : %s\n", instrumentRun)
 		fmt.Printf("Flow cell ID   : %s ➜ %s\n", flowcellID, printFlowCellType(flowcellID))
 	},
+}
+
+func extractRname(input string) (string, error) {
+	var reader io.Reader
+
+	// Check if the input is an existing file
+	if input != "" && input != "-" {
+		if fileInfo, err := os.Stat(input); err == nil && !fileInfo.IsDir() {
+			file, err := os.Open(input)
+			if err != nil {
+				return "", fmt.Errorf("failed to open file: %w", err)
+			}
+			defer file.Close()
+
+			if strings.HasSuffix(input, ".gz") {
+				gzipReader, err := gzip.NewReader(file)
+				if err != nil {
+					return "", fmt.Errorf("failed to open gzip file: %w", err)
+				}
+				defer gzipReader.Close()
+				reader = gzipReader
+			} else {
+				reader = file
+			}
+		} else if os.IsNotExist(err) {
+			// If the file does not exist, treat input as a direct rname string
+			input = strings.TrimPrefix(input, "@") // Remove leading '@' if present
+			return input, nil
+		} else {
+			return "", fmt.Errorf("unable to read the input: %w", err)
+		}
+	} else {
+		// If input is "-" or empty, check if there's data in stdin
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) == 0 {
+			reader = os.Stdin
+		} else {
+			input = strings.TrimPrefix(input, "@") // Remove leading '@' if present
+			return input, nil                      // No file, no stdin, treat as rname string
+		}
+	}
+
+	if reader != nil {
+		scanner := bufio.NewScanner(reader)
+		if scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "@") {
+				return line[1:], nil // Remove the leading '@' character if present
+			}
+			return line, nil
+		}
+		if err := scanner.Err(); err != nil {
+			return "", fmt.Errorf("failed to read input: %w", err)
+		}
+	}
+
+	return "", fmt.Errorf("no valid input found")
 }
 
 func printInstrumentType(instrumentID string) string {
@@ -148,5 +219,5 @@ func printFlowCellType(flowcellID string) string {
 }
 
 func init() {
-	rootCmd.AddCommand(rnameCmd) // rootCmd is assumed to be defined in your Cobra application
+	rootCmd.AddCommand(rnameCmd)
 }

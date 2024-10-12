@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/liamg/tml"
 	"github.com/spf13/cobra"
@@ -63,22 +65,34 @@ func renderFASTQ(filename string) {
 		reader = file
 	}
 
+	// Create a channel to listen for interrupt signals
+	interruptChan := make(chan os.Signal, 1)
+	signal.Notify(interruptChan, syscall.SIGINT)
+
 	scanner := bufio.NewScanner(reader)
 	lineCount := 0
 
-	for scanner.Scan() {
+	// Variable to control if we should continue processing
+	continueProcessing := true
+
+	go func() {
+		<-interruptChan
+		fmt.Println("\nReceived interrupt. Finishing the current line...")
+		continueProcessing = false
+	}()
+
+	for scanner.Scan() && continueProcessing {
 		line := scanner.Text()
 		lineCount++
 
 		switch lineCount % 4 {
 		case 1: // Sequence ID line
-			// trim the leading '@' character
+			// Trim the leading '@' character
 			tml.Printf("<italic>%s</italic>\n", line[1:])
 		case 2: // Sequence line
 			fmt.Println(colorizeSequence(line))
 		case 3: // "+" line
-			// fmt.Println(line)
-			// skip the + line, do nothing
+			// Skip the + line, do nothing
 		case 0: // Quality score line
 			fmt.Println(visualizeQuality(line))
 		}
