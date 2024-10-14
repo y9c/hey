@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"os/signal"
 	"strings"
@@ -147,25 +146,31 @@ func findAdapterWithMismatch(sequence string, minLength int, maxMismatchPercenta
 	bestMatchPos := -1
 	bestMatchLength := 0
 	bestAdapterName := ""
+	allowedMismatchPercentage := maxMismatchPercentage // maximum allowed mismatch percentage
 
 	// Iterate over all known adapter sequences
 	for adapterSeq, adapterName := range adapterSequences {
 		adapterLen := len(adapterSeq)
-		maxMismatches := int(math.Ceil(maxMismatchPercentage * float64(adapterLen)))
 
-		// Check for the adapter starting from any position that would allow the last part of the adapter to match the end of the sequence
-		for i := 0; i <= len(sequence)-minLength; i++ {
+		// Only search for adapters near the end of the sequence
+		for i := len(sequence) - minLength; i >= 0; i-- {
 			// Calculate how much of the adapter can match starting at this position
 			overlapLen := len(sequence) - i
 			if overlapLen > adapterLen {
 				overlapLen = adapterLen
 			}
 
+			if overlapLen < minLength {
+				continue // Skip if the overlap is smaller than the minimum required length
+			}
+
 			candidate := sequence[i : i+overlapLen]
 			mismatches := mismatches(candidate, adapterSeq[:overlapLen])
+			mismatchPercentage := float64(mismatches) / float64(overlapLen)
 
-			if mismatches <= maxMismatches && overlapLen >= minLength {
-				if bestMatchPos == -1 || i < bestMatchPos || (i == bestMatchPos && overlapLen > bestMatchLength) {
+			// Check if the mismatch percentage is below the allowed threshold
+			if mismatchPercentage <= allowedMismatchPercentage {
+				if bestMatchPos == -1 || (i == bestMatchPos && overlapLen > bestMatchLength) {
 					bestMatchPos = i
 					bestMatchLength = overlapLen
 					bestAdapterName = adapterName
@@ -174,11 +179,12 @@ func findAdapterWithMismatch(sequence string, minLength int, maxMismatchPercenta
 		}
 	}
 
+	// Only return matches if the length is greater than minLength and mismatches are below the threshold
 	if bestMatchPos != -1 && bestMatchLength >= minLength {
 		return bestAdapterName, []int{bestMatchPos, len(sequence)} // Mark the region from the match to the end
 	}
 
-	return "", nil
+	return "", nil // No adapter found
 }
 
 // mismatches counts the number of mismatched characters between two strings
