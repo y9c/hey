@@ -16,7 +16,6 @@ import (
 
 var adapterSequences = map[string]string{
 	"AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT":    "Illumina Single End PCR Primer 1",
-	"ACACTCTTTCCCTACACGACGCTCTTCCGATCT":                             "Illumina Small RNA Universal Sequencing Primer",
 	"ACAGGTTCAGAGTTCTACAGTCCGAC":                                    "Illumina DpnII expression Adapter 1",
 	"CAAGCAGAAGACGGCATACGAGATCGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT": "Illumina Paired End PCR Primer 2",
 	"CAAGCAGAAGACGGCATACGAGCTCTTCCGATCT":                            "Illumina Single End Adapter 2",
@@ -30,6 +29,9 @@ var adapterSequences = map[string]string{
 	"GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG":                             "Illumina Single End Adapter 1",
 	"GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT":                            "TruSeq Multiplexing Read 2 Sequencing Primer",
 	"TGGAATTCTCGGGTGCCAAGG":                                         "Illumina Small RNA 3p Adapter 1",
+	"CTGTCTCTTATACACATCT":                                           "Tn5 ME Adapter",
+	"AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT":                             "TruSeq P5 Adapter",
+	"GATCGTCGGACTGTAGAACTCTGAAC":                                    "Samll RNA P5 Adapter",
 }
 
 // fastqCmd represents the fastq command
