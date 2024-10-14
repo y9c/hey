@@ -15,36 +15,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Adapter sequences (extracted from the C++ code you provided)
-var adapterSequences = []string{
-	"GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG",                               // Illumina Single End Adapter 1
-	"CAAGCAGAAGACGGCATACGAGCTCTTCCGATCT",                              // Illumina Single End Adapter 2
-	"AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT",      // Illumina Single End PCR Primer 1
-	"GATCGGAAGAGCGGTTCAGCAGGAATGCCGAG",                                // Illumina Paired End Adapter 2
-	"CAAGCAGAAGACGGCATACGAGATCGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT",   // Illumina Paired End PCR Primer 2
-	"ACACTCTTTCCCTACACGACGCTCTTCCGATCT",                               // Illumina Small RNA Sequencing Primer
-	"ACAGGTTCAGAGTTCTACAGTCCGAC",                                      // Illumina DpnII expression Adapter 1
-	"CAAGCAGAAGACGGCATACGA",                                           // Illumina DpnII expression Adapter 2
-	"CGACAGGTTCAGAGTTCTACAGTCCGACGATC",                                // Illumina DpnII expression Sequencing Primer
-	"CAAGCAGAAGACGGCATACGA",                                           // Illumina NlaIII expression Adapter 2
-	"TGGAATTCTCGGGTGCCAAGG",                                           // Illumina Small RNA Adapter 2
-	"GATCGGAAGAGCACACGTCT",                                            // Illumina Multiplexing Adapter 1
-	"GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT",                              // Illumina Multiplexing PCR Primer 2.01
-	"CGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT",                           // Illumina Paired End Sequencing Primer 2
-	"CTGATCTAGAGGTACCGGATCCCAGCAGT",                                   // ABI Dynabead EcoP Oligo
-	"CTGCCCCGGGTTCCTCATTCTCTCAGCAGCATG",                               // ABI Solid3 Adapter A
-	"CCACTACGCCTCCGCTTTCCTCTCTATGGGCAGTCGGTGAT",                       // ABI Solid3 Adapter B
-	"TGGAATTCTCGGGTGCCAAGG",                                           // Illumina Small RNA Adapter
-	"CGACAGGTTCAGAGTTCTACAGTCCGACGATC",                                // Illumina 5p RNA Adapter
-	"GATCGGAAGAGCACACGTCTGAACTCCAGTCAC",                               // TruSeq Adapter, Index 1
-	"GATCGGAAGAGCACACGTCTGAACTCCAGTCACCGATGTATCTCGTATGCCGTCTTCTGCTTG", // TruSeq Adapter, Index 2
-	"GATCGGAAGAGCACACGTCTGAACTCCAGTCACTTAGGCATCTCGTATGCCGTCTTCTGCTTG", // TruSeq Adapter, Index 3
-	"GATCGGAAGAGCACACGTCTGAACTCCAGTCACACTTGAATCTCGTATGCCGTCTTCTGCTTG", // TruSeq Adapter, Index 8
-	"GATCGGAAGAGCACACGTCTGAACTCCAGTCACGATCAGATCTCGTATGCCGTCTTCTGCTTG", // TruSeq Adapter, Index 9
-	"GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT",                              // TruSeq Multiplexing Read 2 Sequencing Primer
-	"ACACTCTTTCCCTACACGACGCTCTTCCGATCT",                               // TruSeq Universal Adapter
-	"TGGAATTCTCGGGTGCCAAGG",                                           // Illumina Small RNA 3p Adapter 1
-	"GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT",                              // Illumina Multiplexing Index Sequencing Primer
+var adapterSequences = map[string]string{
+	"AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT":    "Illumina Single End PCR Primer 1",
+	"ACACTCTTTCCCTACACGACGCTCTTCCGATCT":                             "Illumina Small RNA Universal Sequencing Primer",
+	"ACAGGTTCAGAGTTCTACAGTCCGAC":                                    "Illumina DpnII expression Adapter 1",
+	"CAAGCAGAAGACGGCATACGAGATCGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT": "Illumina Paired End PCR Primer 2",
+	"CAAGCAGAAGACGGCATACGAGCTCTTCCGATCT":                            "Illumina Single End Adapter 2",
+	"CCACTACGCCTCCGCTTTCCTCTCTATGGGCAGTCGGTGAT":                     "ABI Solid3 Adapter B",
+	"CGACAGGTTCAGAGTTCTACAGTCCGACGATC":                              "Illumina 5p RNA Adapter",
+	"CGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT":                         "Illumina Paired End Sequencing Primer 2",
+	"CTGATCTAGAGGTACCGGATCCCAGCAGT":                                 "ABI Dynabead EcoP Oligo",
+	"CTGCCCCGGGTTCCTCATTCTCTCAGCAGCATG":                             "ABI Solid3 Adapter A",
+	"GATCGGAAGAGCACACGTCTGAACTCCAGTCAC":                             "Illumina Multiplexing Adapter 1",
+	"GATCGGAAGAGCGGTTCAGCAGGAATGCCGAG":                              "Illumina Paired End Adapter 2",
+	"GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG":                             "Illumina Single End Adapter 1",
+	"GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT":                            "TruSeq Multiplexing Read 2 Sequencing Primer",
+	"TGGAATTCTCGGGTGCCAAGG":                                         "Illumina Small RNA 3p Adapter 1",
 }
 
 // fastqCmd represents the fastq command
@@ -103,6 +89,7 @@ func renderFASTQ(filename string) {
 	scanner := bufio.NewScanner(reader)
 	lineCount := 0
 	continueProcessing := true
+	readName := ""
 
 	go func() {
 		<-interruptChan
@@ -116,9 +103,15 @@ func renderFASTQ(filename string) {
 
 		switch lineCount % 4 {
 		case 1: // Sequence ID line
-			tml.Printf("<italic>%s</italic>\n", line[1:])
+			readName = line[1:] // Store the read name without the '@'
 		case 2: // Sequence line
-			fmt.Println(colorizeSequenceWithAdapters(line))
+			adapterInfo, adapterPos := findAdapterWithMismatch(line, 5, 0.05)
+			if adapterInfo != "" {
+				// Append adapter name to read name
+				readName += fmt.Sprintf("    (%s)", adapterInfo)
+			}
+			tml.Printf("<italic>%s</italic>\n", readName) // Print the sequence ID with adapter name appended
+			fmt.Println(colorizeSequenceWithAdapters(line, adapterPos))
 		case 3: // "+" line
 			// Skip the + line, do nothing
 		case 0: // Quality score line
@@ -131,17 +124,16 @@ func renderFASTQ(filename string) {
 	}
 }
 
-func colorizeSequenceWithAdapters(sequence string) string {
-	adapterRegion := findAdapterWithMismatch(sequence, 0.05)
+func colorizeSequenceWithAdapters(sequence string, adapterPos []int) string {
 	var sb strings.Builder
 
-	if adapterRegion != nil {
+	if adapterPos != nil {
 		// Non-adapter region: Color normally
-		nonAdapterSeq := sequence[:adapterRegion[0]]
+		nonAdapterSeq := sequence[:adapterPos[0]]
 		sb.WriteString(colorizeSequence(nonAdapterSeq))
 
 		// Adapter region: Color the adapter and the rest of the sequence in gray
-		adapterSeq := sequence[adapterRegion[0]:]
+		adapterSeq := sequence[adapterPos[0]:]
 		sb.WriteString(tml.Sprintf("<bg-black><darkgrey>%s</darkgrey></bg-black>", adapterSeq))
 	} else {
 		// No adapter detected, color entire sequence normally
@@ -151,41 +143,42 @@ func colorizeSequenceWithAdapters(sequence string) string {
 	return sb.String()
 }
 
-// Optimized function to find the adapter and handle trimming near the end of the read.
-func findAdapterWithMismatch(sequence string, maxMismatchPercentage float64) []int {
-	minLength := 5 // Minimum length of adapter to trim at the end
+func findAdapterWithMismatch(sequence string, minLength int, maxMismatchPercentage float64) (string, []int) {
 	bestMatchPos := -1
 	bestMatchLength := 0
+	bestAdapterName := ""
 
-	// Focus search on the last part of the sequence where adapters are typically found
-	searchWindow := 30 // Limit search window to the last 30 bases
-	searchStart := int(math.Max(0, float64(len(sequence)-searchWindow)))
-
-	for _, adapter := range adapterSequences {
-		adapterLen := len(adapter)
+	// Iterate over all known adapter sequences
+	for adapterSeq, adapterName := range adapterSequences {
+		adapterLen := len(adapterSeq)
 		maxMismatches := int(math.Ceil(maxMismatchPercentage * float64(adapterLen)))
 
-		for i := searchStart; i <= len(sequence)-minLength; i++ {
-			// Determine the maximum possible overlap between adapter and sequence from position i
-			maxOverlap := int(math.Min(float64(adapterLen), float64(len(sequence)-i)))
-			candidate := sequence[i : i+maxOverlap]
+		// Check for the adapter starting from any position that would allow the last part of the adapter to match the end of the sequence
+		for i := 0; i <= len(sequence)-minLength; i++ {
+			// Calculate how much of the adapter can match starting at this position
+			overlapLen := len(sequence) - i
+			if overlapLen > adapterLen {
+				overlapLen = adapterLen
+			}
 
-			// Count mismatches, and only check till maxMismatches
-			mismatches := mismatches(candidate, adapter[:maxOverlap])
-			if mismatches <= maxMismatches {
-				if bestMatchPos == -1 || maxOverlap > bestMatchLength {
+			candidate := sequence[i : i+overlapLen]
+			mismatches := mismatches(candidate, adapterSeq[:overlapLen])
+
+			if mismatches <= maxMismatches && overlapLen >= minLength {
+				if bestMatchPos == -1 || i < bestMatchPos || (i == bestMatchPos && overlapLen > bestMatchLength) {
 					bestMatchPos = i
-					bestMatchLength = maxOverlap
+					bestMatchLength = overlapLen
+					bestAdapterName = adapterName
 				}
 			}
 		}
 	}
 
 	if bestMatchPos != -1 && bestMatchLength >= minLength {
-		return []int{bestMatchPos, len(sequence)}
+		return bestAdapterName, []int{bestMatchPos, len(sequence)} // Mark the region from the match to the end
 	}
 
-	return nil
+	return "", nil
 }
 
 // mismatches counts the number of mismatched characters between two strings
@@ -194,10 +187,6 @@ func mismatches(seq1, seq2 string) int {
 	for i := 0; i < len(seq1); i++ {
 		if seq1[i] != seq2[i] {
 			mismatches++
-			// Early exit if mismatches exceed allowable threshold
-			if mismatches > int(math.Ceil(0.05*float64(len(seq2)))) {
-				break
-			}
 		}
 	}
 	return mismatches
