@@ -151,17 +151,40 @@ func colorizeSequenceWithAdapters(sequence string) string {
 	return sb.String()
 }
 
-// findAdapterWithMismatch finds an adapter with up to `maxMismatchPercentage` allowed mismatches
+// Optimized function to find the adapter and handle trimming near the end of the read.
 func findAdapterWithMismatch(sequence string, maxMismatchPercentage float64) []int {
+	minLength := 5 // Minimum length of adapter to trim at the end
+	bestMatchPos := -1
+	bestMatchLength := 0
+
+	// Focus search on the last part of the sequence where adapters are typically found
+	searchWindow := 30 // Limit search window to the last 30 bases
+	searchStart := int(math.Max(0, float64(len(sequence)-searchWindow)))
+
 	for _, adapter := range adapterSequences {
-		maxMismatches := int(math.Ceil(maxMismatchPercentage * float64(len(adapter))))
-		for i := 0; i <= len(sequence)-len(adapter); i++ {
-			candidate := sequence[i : i+len(adapter)]
-			if mismatches(candidate, adapter) <= maxMismatches {
-				return []int{i, len(sequence)} // Extend to the end of the sequence
+		adapterLen := len(adapter)
+		maxMismatches := int(math.Ceil(maxMismatchPercentage * float64(adapterLen)))
+
+		for i := searchStart; i <= len(sequence)-minLength; i++ {
+			// Determine the maximum possible overlap between adapter and sequence from position i
+			maxOverlap := int(math.Min(float64(adapterLen), float64(len(sequence)-i)))
+			candidate := sequence[i : i+maxOverlap]
+
+			// Count mismatches, and only check till maxMismatches
+			mismatches := mismatches(candidate, adapter[:maxOverlap])
+			if mismatches <= maxMismatches {
+				if bestMatchPos == -1 || maxOverlap > bestMatchLength {
+					bestMatchPos = i
+					bestMatchLength = maxOverlap
+				}
 			}
 		}
 	}
+
+	if bestMatchPos != -1 && bestMatchLength >= minLength {
+		return []int{bestMatchPos, len(sequence)}
+	}
+
 	return nil
 }
 
@@ -171,6 +194,10 @@ func mismatches(seq1, seq2 string) int {
 	for i := 0; i < len(seq1); i++ {
 		if seq1[i] != seq2[i] {
 			mismatches++
+			// Early exit if mismatches exceed allowable threshold
+			if mismatches > int(math.Ceil(0.05*float64(len(seq2)))) {
+				break
+			}
 		}
 	}
 	return mismatches
