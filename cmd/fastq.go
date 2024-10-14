@@ -32,7 +32,7 @@ var adapterSequences = map[string]string{
 	"CTGTCTCTTATACACATCT":                                           "Tn5 ME Adapter",
 	"AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT":                             "TruSeq P5 Adapter",
 	"GATCGTCGGACTGTAGAACTCTGAAC":                                    "Samll RNA P5 Adapter",
-	"TCGGACTGTAGAACTCTGAACGTGTAGATC":                                "Small RNA P5 Adapter Partial",
+	"TCGGACTGTAGAACTCTGAACGTG":                                      "Small RNA P5 Adapter Partial",
 }
 
 // fastqCmd represents the fastq command
