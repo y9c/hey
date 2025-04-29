@@ -26,9 +26,9 @@ linux:
 .PHONY: build-go-binary
 build-go-binary:
 	@echo "building binary..."
-	@go build -ldflags $(BUILD_FLAGS) -o ./hey && upx ./hey
+	@go build -ldflags $(BUILD_FLAGS) -o ./hey
 
 .PHONY: build-release-binary
 build-release-binary:
 	@echo "building release binary..."
-	@go build -ldflags $(BUILD_FLAGS) -o ./hey && upx --ultra-brute ./hey
+	@go build -ldflags $(BUILD_FLAGS) -o ./hey && upx --ultra-brute --force-macos ./hey
