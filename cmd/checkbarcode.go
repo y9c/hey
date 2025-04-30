@@ -51,13 +51,13 @@ var (
 const defaultNumRecordsToCheck = 100
 
 // --- Cobra Command Definition ---
-
 var checkbarcodeCmd = &cobra.Command{
 	Use:   "checkbarcode [yaml-file]",
 	Short: "Check barcode uniformity in FASTQ files listed in YAML",
 	Long: `Processes FASTQ R1 files listed in a YAML config (supports legacy and new formats).
 Extracts the most common barcode from the first N records (default 100).
-Displays results in a table with visual grouping and highlighting.
+Displays results in a table with automatically merged sample names,
+cyclically colored R1 file names, and highlighted non-uniform barcodes.
 Use --key (-k) to specify the YAML top-level key and --num-records (-n) to change the number of records scanned.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -73,17 +73,13 @@ func init() {
 }
 
 // --- Core Logic ---
-
 func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) {
-	// 1. Read and Parse YAML
-	yamlDataAny, err := readYamlConfigGeneric(yamlFilePath) // Returns map[string]any
+	yamlDataAny, err := readYamlConfigGeneric(yamlFilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading YAML: %v\n", err)
 		os.Exit(1)
 	}
-
-	// 2. Gather R1 File Paths
-	filesToProcess, err := gatherFilePathsGeneric(yamlDataAny, yamlFilePath, topKey) // Accepts map[string]any
+	filesToProcess, err := gatherFilePathsGeneric(yamlDataAny, yamlFilePath, topKey)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error processing YAML data: %v\n", err)
 		os.Exit(1)
@@ -92,71 +88,52 @@ func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) {
 		color.Yellow("No valid R1 files found to process under key '%s' in the YAML file.", topKey)
 		return
 	}
-
-	// 3. Process Files Concurrently
 	results := processFilesConcurrently(filesToProcess, recordsToCheck)
-
-	// 4. Prepare Data for Table
 	if len(results) > 0 {
-		sort.Slice(results, func(i, j int) bool {
-			return results[i].SampleName < results[j].SampleName
-		})
+		sort.Slice(results, func(i, j int) bool { return results[i].SampleName < results[j].SampleName })
 		barcodeGroups := groupBarcodes(results)
 		isGroupUniform := checkGroupUniformity(barcodeGroups)
-		printResultsTableAqua(results, isGroupUniform, filepath.Base(yamlFilePath), recordsToCheck)
+		printResultsTableAqua(results, isGroupUniform, filepath.Base(yamlFilePath), recordsToCheck) // Use updated function
 	} else {
 		color.Yellow("No results to display.")
 	}
 }
 
 // --- YAML Parsing and File Path Gathering (Using 'any') ---
-
-// readYamlConfigGeneric reads YAML into a generic structure using 'any' (Go 1.18+)
 func readYamlConfigGeneric(yamlFilePath string) (map[string]any, error) {
 	yamlFile, err := os.ReadFile(yamlFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading YAML file '%s': %w", yamlFilePath, err)
 	}
-
-	var data map[string]any // Use 'any' instead of 'interface{}'
+	var data map[string]any
 	err = yaml.Unmarshal(yamlFile, &data)
 	if err != nil {
 		return nil, fmt.Errorf("parsing YAML file '%s': %w", yamlFilePath, err)
 	}
 	return data, nil
 }
-
-// gatherFilePathsGeneric processes the generic map using 'any' (Go 1.18+)
 func gatherFilePathsGeneric(yamlDataAny map[string]any, yamlFilePath string, topKey string) ([]fileToProcess, error) {
 	var filesToProcess []fileToProcess
 	yamlDir := filepath.Dir(yamlFilePath)
-
 	if topKey == "" {
 		return nil, fmt.Errorf("YAML top-level key cannot be empty; provide using --key flag")
 	}
 	fmt.Fprintf(os.Stderr, "[dim]Using top-level key from command line: '%s'\n", topKey)
-
 	samplesAny, ok := yamlDataAny[topKey]
 	if !ok {
 		return nil, fmt.Errorf("top-level key '%s' not found in YAML", topKey)
 	}
-
-	samplesMap, ok := samplesAny.(map[string]any) // Use 'any'
+	samplesMap, ok := samplesAny.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("expected a map of samples under the key '%s', but got %T", topKey, samplesAny)
 	}
-
-	// Iterate through samples
 	for sampleName, sampleDataAny := range samplesMap {
-		var runsList []any // Use 'any'
-
-		// Check for legacy format: list directly under sample name
-		if runsDirect, ok := sampleDataAny.([]any); ok { // Use 'any'
+		var runsList []any
+		if runsDirect, ok := sampleDataAny.([]any); ok {
 			runsList = runsDirect
-		} else if runsIndirectMap, ok := sampleDataAny.(map[string]any); ok { // Use 'any'
-			// Check for new format: list under "data" key
+		} else if runsIndirectMap, ok := sampleDataAny.(map[string]any); ok {
 			if dataVal, dataKeyExists := runsIndirectMap["data"]; dataKeyExists {
-				if runsDataList, ok := dataVal.([]any); ok { // Use 'any'
+				if runsDataList, ok := dataVal.([]any); ok {
 					runsList = runsDataList
 				} else {
 					color.Yellow("Warning: Sample '%s' has 'data' key but its value is not a list (%T), skipping.", sampleName, dataVal)
@@ -170,33 +147,26 @@ func gatherFilePathsGeneric(yamlDataAny map[string]any, yamlFilePath string, top
 			color.Yellow("Warning: Sample '%s' has unexpected value type (%T), skipping.", sampleName, sampleDataAny)
 			continue
 		}
-
 		if runsList == nil {
 			color.Yellow("Warning: Could not extract runs list for sample '%s', skipping.", sampleName)
 			continue
 		}
-
-		// Process the extracted runsList
 		for i, runAny := range runsList {
-			runMap, ok := runAny.(map[string]any) // Use 'any'
+			runMap, ok := runAny.(map[string]any)
 			if !ok {
 				color.Yellow("Warning: Sample '%s', run %d is not a map, skipping.", sampleName, i+1)
 				continue
 			}
-
 			r1Any, r1KeyExists := runMap["R1"]
 			if !r1KeyExists {
 				color.Yellow("Warning: Sample '%s', run %d has no 'R1' key, skipping.", sampleName, i+1)
 				continue
 			}
-
 			r1RelativePath, ok := r1Any.(string)
 			if !ok || r1RelativePath == "" {
 				color.Yellow("Warning: Sample '%s', run %d has invalid or empty 'R1' path (%T), skipping.", sampleName, i+1, r1Any)
 				continue
 			}
-
-			// Expand user home dir if path starts with ~
 			if strings.HasPrefix(r1RelativePath, "~") {
 				homeDir, err := os.UserHomeDir()
 				if err != nil {
@@ -205,7 +175,6 @@ func gatherFilePathsGeneric(yamlDataAny map[string]any, yamlFilePath string, top
 				}
 				r1RelativePath = filepath.Join(homeDir, r1RelativePath[1:])
 			}
-
 			var r1AbsPath string
 			if filepath.IsAbs(r1RelativePath) {
 				r1AbsPath = r1RelativePath
@@ -213,80 +182,49 @@ func gatherFilePathsGeneric(yamlDataAny map[string]any, yamlFilePath string, top
 				r1AbsPath = filepath.Join(yamlDir, r1RelativePath)
 			}
 			r1AbsPath = filepath.Clean(r1AbsPath)
-
-			filesToProcess = append(filesToProcess, fileToProcess{
-				SampleName:   sampleName,
-				RelativePath: r1RelativePath,
-				AbsolutePath: r1AbsPath,
-				// ResultChannel, WaitGroup, RecordsToCheck added later
-			})
-		} // End loop through runsList
-	} // End loop through samplesMap
-
+			filesToProcess = append(filesToProcess, fileToProcess{SampleName: sampleName, RelativePath: r1RelativePath, AbsolutePath: r1AbsPath})
+		}
+	}
 	return filesToProcess, nil
 }
 
 // --- Concurrent File Processing (Using modern 'min' and 'range') ---
-
 func processFilesConcurrently(files []fileToProcess, recordsToCheck int) []processResult {
 	results := make([]processResult, 0, len(files))
 	resultChannel := make(chan processResult, len(files))
 	var wg sync.WaitGroup
-
-	bar := progressbar.NewOptions(len(files),
-		progressbar.OptionSetDescription("[cyan]Processing R1 files..."),
-		progressbar.OptionSetWriter(os.Stderr),
-		progressbar.OptionShowCount(),
-		progressbar.OptionEnableColorCodes(true),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer: "[green]=[reset]", SaucerHead: "[green]>[reset]",
-			SaucerPadding: " ", BarStart: "[", BarEnd: "]",
-		}),
-	)
-
-	// Use min (Go 1.21+) and range (Go 1.22+)
-	numWorkers := min(4, len(files)) // Default max 4 workers
+	bar := progressbar.NewOptions(len(files), progressbar.OptionSetDescription("[cyan]Processing R1 files..."), progressbar.OptionSetWriter(os.Stderr), progressbar.OptionShowCount(), progressbar.OptionEnableColorCodes(true), progressbar.OptionSetTheme(progressbar.Theme{Saucer: "[green]=[reset]", SaucerHead: "[green]>[reset]", SaucerPadding: " ", BarStart: "[", BarEnd: "]"}))
+	numWorkers := min(4, len(files))
 	jobs := make(chan fileToProcess, len(files))
-
-	for w := range numWorkers { // Requires Go 1.22+
+	for w := range numWorkers {
 		go worker(w, jobs)
 	}
-
 	wg.Add(len(files))
-	for i := range files { // Use range over slice (more idiomatic than index loop)
+	for i := range files {
 		files[i].ResultChannel = resultChannel
 		files[i].WaitGroup = &wg
 		files[i].RecordsToCheck = recordsToCheck
 		jobs <- files[i]
 	}
 	close(jobs)
-
 	go func() { wg.Wait(); close(resultChannel) }()
-
 	for result := range resultChannel {
 		results = append(results, result)
 		_ = bar.Add(1)
 	}
 	_ = bar.Finish()
 	fmt.Fprintln(os.Stderr)
-
 	return results
 }
-
-// worker remains the same
 func worker(id int, jobs <-chan fileToProcess) {
 	for job := range jobs {
 		barcode := getBarcodeFromFastqGo(job.AbsolutePath, job.RecordsToCheck)
-		job.ResultChannel <- processResult{
-			SampleName:   job.SampleName,
-			RelativePath: job.RelativePath,
-			Barcode:      barcode,
-		}
+		job.ResultChannel <- processResult{SampleName: job.SampleName, RelativePath: job.RelativePath, Barcode: barcode}
 		job.WaitGroup.Done()
 	}
 }
 
-// --- Barcode Extraction and Compatibility (remain the same) ---
+// --- Barcode Extraction and Compatibility ---
 func extractBarcodeFromHeaderGo(headerLine string) (string, bool) {
 	parts := strings.Fields(headerLine)
 	if len(parts) < 2 {
@@ -374,7 +312,7 @@ func areBarcodesCompatibleGo(bc1, bc2 string) bool {
 	return true
 }
 
-// --- Grouping and Uniformity Check (remain the same) ---
+// --- Grouping and Uniformity Check ---
 func groupBarcodes(results []processResult) map[string][]string {
 	groups := make(map[string][]string)
 	for _, res := range results {
@@ -411,39 +349,51 @@ func checkGroupUniformity(barcodeGroups map[string][]string) map[string]bool {
 	return isUniform
 }
 
-// --- Table Generation (remains the same) ---
+// --- Table Generation (Re-enabled Colors with AutoMerge) ---
 func printResultsTableAqua(results []processResult, isGroupUniform map[string]bool, yamlBaseName string, recordsChecked int) {
 	t := table.New(os.Stdout)
+	t.SetAutoMerge(true) // Keep AutoMerge enabled
+
+	// Re-introduce color variables
 	colorCycle := []*color.Color{color.New(color.FgMagenta), color.New(color.FgCyan)}
 	redColor := color.New(color.FgRed, color.Bold)
 	yellowColor := color.New(color.FgYellow)
 	greenColor := color.New(color.FgGreen)
-	dimColor := color.New(color.Faint)
+	// dimColor is not needed for sample name merging with SetAutoMerge
+
+	// Create colored headers
 	header1 := color.New(color.FgCyan, color.Bold).Sprint("Sample")
 	header2 := color.New(color.FgCyan, color.Bold).Sprint("R1 File")
 	header3 := color.New(color.FgCyan, color.Bold).Sprintf("Most Common Barcode\n(first %d records)", recordsChecked)
+
 	t.SetHeaders(header1, header2, header3)
 	t.SetHeaderStyle(table.StyleBold)
 	t.SetLineStyle(table.StyleBlue)
 	t.SetDividers(table.UnicodeRoundedDividers)
-	previousSampleName := ""
+
+	// Use this to track *only* for R1 color cycling logic
+	previousSampleNameForColor := ""
 	currentColorIndex := -1
+
 	for _, row := range results {
-		currentSampleName := row.SampleName
+		currentSampleName := row.SampleName // Use the actual sample name
 		displayR1 := row.RelativePath
 		displayBarcode := row.Barcode
-		displaySampleName := ""
+
+		// --- Styling Logic ---
 		var activeColor *color.Color
-		if currentSampleName != previousSampleName {
+
+		// 1. R1 Color Cycling (Based on actual name change)
+		if currentSampleName != previousSampleNameForColor {
 			currentColorIndex = (currentColorIndex + 1) % len(colorCycle)
-			displaySampleName = currentSampleName
-		} else {
-			displaySampleName = dimColor.Sprint(currentSampleName)
 		}
 		activeColor = colorCycle[currentColorIndex]
+		// Apply color to R1 string
 		styledR1 := activeColor.Sprint(displayR1)
-		styledBarcode := ""
-		isUniform := isGroupUniform[currentSampleName]
+
+		// 2. Barcode Highlighting
+		styledBarcode := ""                            // Start with empty, apply style below
+		isUniform := isGroupUniform[currentSampleName] // Default is false if key missing
 		isError := false
 		for msg := range errorMessages {
 			if strings.HasPrefix(displayBarcode, msg) {
@@ -451,16 +401,24 @@ func printResultsTableAqua(results []processResult, isGroupUniform map[string]bo
 				break
 			}
 		}
+
 		if isError {
 			styledBarcode = yellowColor.Sprint(displayBarcode)
 		} else if !isUniform {
-			styledBarcode = redColor.Sprint(displayBarcode)
+			styledBarcode = redColor.Sprint(displayBarcode) // Red for non-uniform
 		} else {
-			styledBarcode = greenColor.Sprint(displayBarcode)
+			styledBarcode = greenColor.Sprint(displayBarcode) // Green for uniform
 		}
-		t.AddRow(displaySampleName, styledR1, styledBarcode)
-		previousSampleName = currentSampleName
+
+		// --- Add Row Data ---
+		// Pass the PLAIN sample name for AutoMerge to work correctly on this column.
+		// Pass the STYLED strings for R1 and Barcode.
+		t.AddRow(currentSampleName, styledR1, styledBarcode)
+
+		// Update tracker for the next iteration's color cycling check
+		previousSampleNameForColor = currentSampleName
 	}
+
 	fmt.Println()
 	t.Render()
 	fmt.Println("Processed on " + yamlBaseName)
