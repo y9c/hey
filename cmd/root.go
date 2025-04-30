@@ -26,11 +26,11 @@ var rootCmd = &cobra.Command{
 func Execute() {
 	cc.Init(&cc.Config{
 		RootCmd:  rootCmd,
-		Headings: cc.HiYellow + cc.Bold + cc.Underline,
-		Commands: cc.HiGreen + cc.Bold,
+		Headings: cc.Yellow + cc.Bold + cc.Underline,
+		Commands: cc.Green + cc.Bold,
 		Example:  cc.Italic,
 		ExecName: cc.Bold,
-		Flags:    cc.Bold,
+		Flags:    cc.Blue + cc.Bold,
 	})
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

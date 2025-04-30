@@ -4,7 +4,7 @@ go 1.24.2
 
 require (
 	github.com/aquasecurity/table v1.9.0
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.15.0
 	github.com/gizak/termui v0.0.0-20181228210747-b136f68f55f1
 	github.com/golang/text v0.3.0
 	github.com/ivanpirog/coloredcobra v1.0.1
