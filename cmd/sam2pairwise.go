@@ -100,7 +100,7 @@ func processSAMStdin() {
 		}
 
 		// --- Header Line Output (User Requested Format) ---
-		fmt.Printf("%s\t%s\t%s\t%s\t%s\t%s\n", readName, flag, refName, pos, cigar, mdTagValue)
+		tml.Printf("<darkgrey><italic>%s\t%s\t%s\t%s\t%s\t%s</italic></darkgrey>\n", readName, flag, refName, pos, cigar, mdTagValue)
 		// --- End of Header Line ---
 
 		// Print alignment strings using tml.Println to render colors
