@@ -104,10 +104,10 @@ func processSAMStdin() {
 		// --- End of Header Line ---
 
 		// Print alignment strings using tml.Println to render colors
-		tml.Println(alignedSeq) // <-- Use tml.Println
-		fmt.Println(markers)    // Markers remain uncolored (use fmt)
-		tml.Println(refSeq)     // <-- Use tml.Println
-		fmt.Println() // Blank line separator
+		tml.Printf(alignedSeq + "\n") // <-- Use tml.Println
+		fmt.Println(markers)          // Markers remain uncolored (use fmt)
+		tml.Printf(refSeq + "\n")     // <-- Use tml.Println
+		fmt.Println()                 // Blank line separator
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -252,7 +252,6 @@ func parseMDTag(mdTag string) ([]MDTagEntry, error) {
 	return entries, nil
 }
 
-
 // --- Updated function to build colored strings directly ---
 func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool, knownRefBase byte, knownAltBase byte, markChar rune) (refSeqColored string, alignedSeqColored string, markers string, err error) {
 	var refBuilder, alignedSeqBuilder, markerBuilder strings.Builder
@@ -266,7 +265,7 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 
 	// MD tag parsing (only if MD tag exists)
 	var mdEntries []MDTagEntry
-	mdIndex := 0 // Current position in mdEntries
+	mdIndex := 0  // Current position in mdEntries
 	mdSubPos := 0 // Position within the current MD entry (e.g., within a number or deletion string)
 	hasMD := mdTag != ""
 	mdParseErr := false // Flag if MD parsing failed
@@ -288,10 +287,14 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 
 		// Determine base color (only needed for mismatch background)
 		switch base {
-		case 'A', 'a': color = "red"
-		case 'T', 't': color = "green"
-		case 'G', 'g': color = "yellow"
-		case 'C', 'c': color = "blue"
+		case 'A', 'a':
+			color = "red"
+		case 'T', 't':
+			color = "green"
+		case 'G', 'g':
+			color = "yellow"
+		case 'C', 'c':
+			color = "blue"
 		}
 
 		// Determine formatting based on character type and mismatch status
@@ -319,7 +322,6 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 		}
 	}
 
-
 	// Process CIGAR operations
 	for _, op := range cigarOps {
 		length := op.Length
@@ -345,7 +347,12 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 					if mdIndex >= len(mdEntries) {
 						if !mdParseErr {
 							fmt.Fprintf(os.Stderr, "Warning: Reached end of MD tag prematurely during M/=/X op%s. Assuming 'N' for reference base.\n",
-								func() string { if mdTag != "" { return fmt.Sprintf(" (MD: %s)", mdTag); }; return "" }())
+								func() string {
+									if mdTag != "" {
+										return fmt.Sprintf(" (MD: %s)", mdTag)
+									}
+									return ""
+								}())
 						}
 						hasMD = false // Stop trusting MD tag
 					}
@@ -440,7 +447,12 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 					if mdIndex >= len(mdEntries) {
 						if !mdParseErr { // Don't warn again if MD parsing failed initially
 							fmt.Fprintf(os.Stderr, "Warning: Reached end of MD tag prematurely during D op%s. Representing remaining deleted bases as 'N'.\n",
-								func() string { if mdTag != "" { return fmt.Sprintf(" (MD: %s)", mdTag); }; return "" }())
+								func() string {
+									if mdTag != "" {
+										return fmt.Sprintf(" (MD: %s)", mdTag)
+									}
+									return ""
+								}())
 						}
 						// Fill remaining needed bases with 'N'
 						for k := 0; k < length-deletedBasesFound; k++ {
@@ -465,7 +477,7 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 						for i := range basesToTake { // Modernized loop
 							delBase := currentMdEntry.Changes[mdSubPos+i]
 							applyColor(&alignedSeqBuilder, '-', true) // Gap in read
-							applyColor(&refBuilder, delBase, true) // Show deleted base from ref with mismatch highlight
+							applyColor(&refBuilder, delBase, true)    // Show deleted base from ref with mismatch highlight
 							markerBuilder.WriteByte(' ')
 						}
 						deletedBasesFound += basesToTake
@@ -495,7 +507,7 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 				}
 				readBase := seq[seqPos]
 				applyColor(&alignedSeqBuilder, readBase, true) // Highlight soft clipped read bases
-				applyColor(&refBuilder, 'N', false)           // Indicate non-aligning ref part
+				applyColor(&refBuilder, 'N', false)            // Indicate non-aligning ref part
 				markerBuilder.WriteByte(' ')
 				seqPos++
 			}
