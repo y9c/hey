@@ -32,3 +32,5 @@ jobs:
           binary_name: 'hey'
           extra_files: LICENSE README.md
           release_tag: 'latest'
+          md5sum: false
+          overwrite: true
