@@ -49,14 +49,14 @@ var (
 	numRecordsToCheck int
 )
 
-const defaultNumRecordsToCheck = 100
+const defaultNumRecordsToCheck = 1000
 
 // --- Cobra Command Definition ---
 var checkbarcodeCmd = &cobra.Command{
 	Use:   "checkbarcode [yaml-file]",
 	Short: "Check barcode uniformity in FASTQ files listed in YAML",
 	Long: `Processes FASTQ R1 files listed in a YAML config (supports legacy and new formats).
-Extracts the most common barcode from the first N records (default 100).
+Extracts the most common barcode from the first N records (default 1000).
 Compares barcodes within a sample group based on the shortest length in that group,
 treating 'N' as a wildcard. Displays results in a table with highlighting for non-uniform groups.`,
 	Args: cobra.ExactArgs(1),
