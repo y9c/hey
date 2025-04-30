@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   releases-matrix:
-    name: Release Go Binary
+    name: Release Go Binary (pre-release, for testing purposes)
     runs-on: ubuntu-latest
     strategy:
       matrix:
