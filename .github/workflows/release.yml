@@ -5,58 +5,30 @@ on:
     branches:
       - main
       - master
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
-  build-release-and-deploy:
-    name: Build, Release, and Deploy
+  releases-matrix:
+    name: Release Go Binary
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        # build and publish in parallel: linux/386, linux/amd64, linux/arm64, windows/386, windows/amd64, darwin/amd64, darwin/arm64
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.24'
-
-      - name: Check out code
-        uses: actions/checkout@v3
-
-      - name: Get dependencies
-        run: go get -v ./...
-
-      - name: Build binary
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o hey
-
-      - name: Install UPX
-        run: sudo apt-get install -y upx
-
-      - name: Compress binary with UPX
-        run: upx --best --lzma hey
-
-      - name: Copy binary to public directory for GitHub Pages
-        run: |
-          mkdir -p public
-          cp hey public/
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - uses: actions/checkout@v4
+      - uses: wangyoucao577/go-release-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: hey
-          tag_name: latest
-          release_name: Latest Release of Hey
-          body: |
-            ## Latest Release of Hey
-            Download the latest version of Hey here. This binary is built for Linux and updated automatically with each push to the main branch.
-
-            **Public Download Link**: https://y9c.github.io/hey/hey
-            - **Filename**: hey
-            - **Platform**: Linux (AMD64)
-          overwrite: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: 'https://dl.google.com/go/go1.13.1.linux-amd64.tar.gz'
+          project_path: './cmd/hey'
+          binary_name: 'hey'
+          extra_files: LICENSE README.md
