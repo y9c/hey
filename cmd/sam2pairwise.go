@@ -176,7 +176,7 @@ func processSAMStdin() {
 	// If loop finished because of signal, indicate graceful exit
 	if !continueProcessing {
 		//fmt.Fprintln(os.Stderr, "Processing finished.")
-		tml.Fprintln(os.Stderr, "<yellow><bold>Signal received. Finishing current record and exiting...</bold></yellow>")
+		tml.Fprintf(os.Stderr, "<yellow><bold>Signal received. Finishing current record and exiting...</bold></yellow>\n")
 	}
 }
 
