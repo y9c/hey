@@ -7,3 +7,7 @@
 ## open
 
 ![](./docs/preview_open.png)
+
+## fastq
+
+![](./docs/preview_fastq.png)
