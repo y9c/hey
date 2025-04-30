@@ -75,7 +75,7 @@ func processSAMStdin() {
 	// Goroutine to handle the signal
 	go func() {
 		<-interruptChan // Wait for a signal
-		tml.Printf("\n<yellow><bold>Signal received. Finishing current record and exiting...</bold></yellow>\n")
+		//tml.Printf("\n<yellow><bold>Signal received. Finishing current record and exiting...</bold></yellow>\n")
 		continueProcessing = false // Signal the main loop to stop
 	}()
 	// --- End Signal Handling Setup ---
@@ -175,7 +175,8 @@ func processSAMStdin() {
 
 	// If loop finished because of signal, indicate graceful exit
 	if !continueProcessing {
-		fmt.Fprintln(os.Stderr, "Processing finished.")
+		//fmt.Fprintln(os.Stderr, "Processing finished.")
+		tml.Fprintln(os.Stderr, "<yellow><bold>Signal received. Finishing current record and exiting...</bold></yellow>")
 	}
 }
 
