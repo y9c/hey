@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/signal" // Needed for signal handling
 	"strconv"
 	"strings"
+	"syscall" // Needed for signal handling
 
 	"github.com/liamg/tml" // Import tml for coloring
 	"github.com/spf13/cobra"
@@ -15,16 +17,25 @@ import (
 var (
 	knownMutation     string
 	knownMutationMark string
+	filterForward     bool // Flag for -f
+	filterReverse     bool // Flag for -r
 )
 
 // sam2pairwiseCmd processes SAM records from stdin into pairwise alignments
 var sam2pairwiseCmd = &cobra.Command{
-	Use:   "sam2pairwise [-m REF>ALT] [-l MARK]",
+	Use:   "sam2pairwise [-m REF>ALT] [-l MARK] [-f] [-r]",
 	Short: "Convert SAM records from stdin into pairwise alignment format",
 	Long: `Processes SAM records, parsing CIGAR and MD tags to generate pairwise alignments.
 Highlighting: Mismatches = colored background; Matches = plain text.
-Optionally, use -m REF>ALT (e.g., -m C>T) and -l MARK (e.g., -l '*')
-to mark specific known mismatches with MARK instead of a space.`,
+
+Filtering Options:
+  -f, --forward: Only process Read 1 Forward or Read 2 Reverse reads.
+  -r, --reverse: Only process Read 1 Reverse or Read 2 Forward reads.
+  (If neither -f nor -r is specified, all reads are processed).
+
+Marking Mismatches:
+  Optionally, use -m REF>ALT (e.g., -m C>T) and -l MARK (e.g., -l '.')
+  to mark specific known mismatches with MARK instead of a space.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Validate the knownMutationMark (must be a single character)
 		if len(knownMutationMark) > 1 {
@@ -36,6 +47,11 @@ to mark specific known mismatches with MARK instead of a space.`,
 			fmt.Fprintln(os.Stderr, "Error: -m mutation format must be REF>ALT (e.g., C>T).")
 			os.Exit(1)
 		}
+		// Validate filter flags
+		if filterForward && filterReverse {
+			fmt.Fprintln(os.Stderr, "Error: Cannot use -f and -r flags simultaneously.")
+			os.Exit(1)
+		}
 		processSAMStdin()
 	},
 }
@@ -44,12 +60,26 @@ func init() {
 	rootCmd.AddCommand(sam2pairwiseCmd)
 	// --- Define flags ---
 	sam2pairwiseCmd.Flags().StringVarP(&knownMutation, "mutation", "m", "", "Known mutation to mark (e.g., C>T)")
-	// Default mark is '.' as in the C++ version
 	sam2pairwiseCmd.Flags().StringVarP(&knownMutationMark, "mark", "l", ".", "Single character to use for marking the known mutation")
+	sam2pairwiseCmd.Flags().BoolVarP(&filterForward, "forward", "f", false, "Filter for Read 1 Forward or Read 2 Reverse")
+	sam2pairwiseCmd.Flags().BoolVarP(&filterReverse, "reverse", "r", false, "Filter for Read 1 Reverse or Read 2 Forward")
 }
 
 // processSAMStdin reads SAM records from stdin and converts each record into pairwise alignment
 func processSAMStdin() {
+	// --- Signal Handling Setup ---
+	interruptChan := make(chan os.Signal, 1)
+	signal.Notify(interruptChan, syscall.SIGINT, syscall.SIGTERM) // Listen for Ctrl+C (SIGINT) and SIGTERM
+	continueProcessing := true                                    // Flag to control the main loop
+
+	// Goroutine to handle the signal
+	go func() {
+		<-interruptChan // Wait for a signal
+		tml.Printf("\n<yellow><bold>Signal received. Finishing current record and exiting...</bold></yellow>\n")
+		continueProcessing = false // Signal the main loop to stop
+	}()
+	// --- End Signal Handling Setup ---
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	// --- Pre-parse known mutation ---
@@ -63,7 +93,8 @@ func processSAMStdin() {
 	// Use the first character of the mark string, default '.'
 	markChar := []rune(knownMutationMark)[0]
 
-	for scanner.Scan() {
+	// --- Main Processing Loop ---
+	for continueProcessing && scanner.Scan() { // Check continueProcessing flag here
 		line := scanner.Text()
 		if strings.HasPrefix(line, "@") {
 			continue // Skip header lines
@@ -77,12 +108,38 @@ func processSAMStdin() {
 
 		// Extract necessary fields
 		readName := fields[0]
-		flag := fields[1]
+		flagStr := fields[1] // Keep flag as string for printing
 		refName := fields[2] // Reference sequence name
 		pos := fields[3]     // 1-based leftmost mapping POSition
 		cigar := fields[5]   // CIGAR string
 		seq := fields[9]     // Segment SEQuence
 		mdTagValue := ""     // Initialize MD tag value
+
+		// --- Filtering Logic ---
+		if filterForward || filterReverse {
+			flag, err := strconv.Atoi(flagStr)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Skipping invalid SAM record (invalid flag %s): %s\n", flagStr, line)
+				continue
+			}
+
+			isRead1 := (flag & 0x40) != 0
+			isRead2 := (flag & 0x80) != 0
+			isReverse := (flag & 0x10) != 0
+
+			if filterForward {
+				// Keep Read 1 Forward OR Read 2 Reverse
+				if !((isRead1 && !isReverse) || (isRead2 && isReverse)) {
+					continue // Skip this read
+				}
+			} else if filterReverse {
+				// Keep Read 1 Reverse OR Read 2 Forward
+				if !((isRead1 && isReverse) || (isRead2 && !isReverse)) {
+					continue // Skip this read
+				}
+			}
+		}
+		// --- End Filtering Logic ---
 
 		// Find and extract the MD tag *value*
 		for _, field := range fields[11:] {
@@ -92,7 +149,6 @@ func processSAMStdin() {
 			}
 		}
 
-		// --- Updated call to pass flag info ---
 		refSeq, alignedSeq, markers, err := samToPairwise(seq, cigar, mdTagValue, useKnownMutation, knownRefBase, knownAltBase, markChar)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error processing read %s: %v\n", readName, err)
@@ -100,18 +156,26 @@ func processSAMStdin() {
 		}
 
 		// --- Header Line Output (User Requested Format) ---
-		tml.Printf("<darkgrey><italic>%s\t%s\t%s\t%s\t%s\t%s</italic></darkgrey>\n", readName, flag, refName, pos, cigar, mdTagValue)
+		tml.Printf("<darkgrey><italic>%s\t%s\t%s\t%s\t%s\t%s</italic></darkgrey>\n", readName, flagStr, refName, pos, cigar, mdTagValue)
 		// --- End of Header Line ---
 
 		// Print alignment strings using tml.Println to render colors
-		tml.Printf(alignedSeq + "\n") // <-- Use tml.Println
-		fmt.Println(markers)          // Markers remain uncolored (use fmt)
-		tml.Printf(refSeq + "\n")     // <-- Use tml.Println
-		fmt.Println()                 // Blank line separator
-	}
+		tml.Printf(alignedSeq + "\n")
+		fmt.Println(markers)
+		tml.Printf(refSeq + "\n")
+		fmt.Println() // Blank line separator
+	} // --- End Main Processing Loop ---
 
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "Error reading standard input:", err)
+		// Avoid printing error if we stopped due to interrupt
+		if continueProcessing {
+			fmt.Fprintln(os.Stderr, "Error reading standard input:", err)
+		}
+	}
+
+	// If loop finished because of signal, indicate graceful exit
+	if !continueProcessing {
+		fmt.Fprintln(os.Stderr, "Processing finished.")
 	}
 }
 
@@ -252,6 +316,7 @@ func parseMDTag(mdTag string) ([]MDTagEntry, error) {
 	return entries, nil
 }
 
+// samToPairwise function remains the same as provided in the context
 // --- Updated function to build colored strings directly ---
 func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool, knownRefBase byte, knownAltBase byte, markChar rune) (refSeqColored string, alignedSeqColored string, markers string, err error) {
 	var refBuilder, alignedSeqBuilder, markerBuilder strings.Builder
@@ -534,8 +599,13 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 		}
 	}
 	if seqPos != len(seq) && len(seq) > 0 {
-		if seqPos < len(seq) && !mdParseErr { // Only warn if MD parsing didn't already fail
+		// Allow seqPos < len(seq) if MD tag parsing failed, as it might cause early termination of processing within M/=/X ops
+		if seqPos < len(seq) && !mdParseErr {
 			fmt.Fprintf(os.Stderr, "Warning: CIGAR operations consumed %d bases, but sequence length is %d. Result might be truncated or CIGAR/SEQ inconsistent.\n", seqPos, len(seq))
+		} else if seqPos > len(seq) { // seqPos > len(seq) is always an issue
+			fmt.Fprintf(os.Stderr, "Error: CIGAR operations consumed %d bases, but sequence length is only %d. CIGAR/SEQ inconsistent.\n", seqPos, len(seq))
+			// Optionally return an error here if strict consistency is required
+			// return "", "", "", fmt.Errorf("CIGAR/SEQ length mismatch: CIGAR implies %d bases, SEQ has %d", seqPos, len(seq))
 		}
 	}
 
@@ -556,10 +626,13 @@ func parseCigar(cigar string) ([]CigarOp, error) {
 			lengthStr.WriteRune(char)
 		} else if strings.ContainsRune("MIDNSHP=X", char) { // Check if it's a valid CIGAR operation type
 			if lengthStr.Len() == 0 {
+				// Allow operation at the beginning without length (implicit length 1)
+				// This is non-standard but might occur? Usually not.
+				// Let's treat it as an error for standard compliance.
 				return nil, fmt.Errorf("CIGAR operation '%c' has no preceding length", char)
 			}
 			length, err := strconv.Atoi(lengthStr.String())
-			if err != nil || length <= 0 {
+			if err != nil || length <= 0 { // Length must be > 0
 				return nil, fmt.Errorf("invalid CIGAR length '%s' for operation '%c'", lengthStr.String(), char)
 			}
 			ops = append(ops, CigarOp{
@@ -585,10 +658,18 @@ type CigarOp struct {
 	Op     rune
 }
 
-// Go 1.21 min function (can remove if using earlier Go version)
+// min function (requires Go 1.21+)
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
+
+// max function (requires Go 1.21+) - Not used currently but good to have
+// func max(a, b int) int {
+// 	if a > b {
+// 		return a
+// 	}
+// 	return b
+// }
