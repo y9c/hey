@@ -47,7 +47,7 @@ var (
 	numRecordsToCheck int
 )
 
-const defaultNumRecordsToCheck = 100
+const defaultNumRecordsToCheck = 1000
 const defaultMaxWorkers = 4 // Default max concurrent workers
 
 // --- Cobra Command Definition ---
@@ -56,7 +56,7 @@ var checkbarcodeCmd = &cobra.Command{
 	Short: "Check barcode uniformity in FASTQ files listed in YAML",
 	Long: `Processes FASTQ R1 files listed in a YAML config (supports legacy and new formats),
 maintaining the original order from the YAML file.
-Extracts the most common barcode from the first N records (default 100).
+Extracts the most common barcode from the first N records (default 1000).
 Compares barcodes within a sample group based on the shortest length in that group,
 treating 'N' as a wildcard. Displays results in a table with automatically merged sample names,
 cyclically colored R1 file names, and highlighting for non-uniform/error barcodes.
