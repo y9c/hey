@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"math" // Import math package for MaxInt32
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,9 +57,8 @@ var checkbarcodeCmd = &cobra.Command{
 	Short: "Check barcode uniformity in FASTQ files listed in YAML",
 	Long: `Processes FASTQ R1 files listed in a YAML config (supports legacy and new formats).
 Extracts the most common barcode from the first N records (default 100).
-Displays results in a table with automatically merged sample names,
-cyclically colored R1 file names, and highlighted non-uniform barcodes.
-Use --key (-k) to specify the YAML top-level key and --num-records (-n) to change the number of records scanned.`,
+Compares barcodes within a sample group based on the shortest length in that group,
+treating 'N' as a wildcard. Displays results in a table with highlighting for non-uniform groups.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		barcodeRegex = regexp.MustCompile(`^[ACGTN+]+$`)
@@ -92,8 +92,9 @@ func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) {
 	if len(results) > 0 {
 		sort.Slice(results, func(i, j int) bool { return results[i].SampleName < results[j].SampleName })
 		barcodeGroups := groupBarcodes(results)
-		isGroupUniform := checkGroupUniformity(barcodeGroups)
-		printResultsTableAqua(results, isGroupUniform, filepath.Base(yamlFilePath), recordsToCheck) // Use updated function
+		// Use the updated uniformity check
+		isGroupUniform := checkGroupUniformityPrefix(barcodeGroups)
+		printResultsTableAqua(results, isGroupUniform, filepath.Base(yamlFilePath), recordsToCheck)
 	} else {
 		color.Yellow("No results to display.")
 	}
@@ -298,17 +299,25 @@ func getBarcodeFromFastqGo(fastqPath string, recordsToCheck int) string {
 	}
 	return mostCommon
 }
-func areBarcodesCompatibleGo(bc1, bc2 string) bool {
-	if len(bc1) != len(bc2) {
+
+// Modified areBarcodesCompatibleGo to compare prefixes up to minLength
+func areBarcodesCompatibleGo(bc1, bc2 string, minLength int) bool {
+	// Ensure strings are long enough for the comparison length
+	if len(bc1) < minLength || len(bc2) < minLength {
+		// This implies an issue with how minLength was calculated or passed,
+		// or very short barcodes. Treat as incompatible for safety.
 		return false
 	}
-	r1 := []rune(bc1)
-	r2 := []rune(bc2)
-	for i := range r1 {
-		if r1[i] != 'N' && r2[i] != 'N' && r1[i] != r2[i] {
+	for i := 0; i < minLength; i++ {
+		// Use byte indexing assuming ASCII/UTF-8 compatible barcodes
+		char1 := bc1[i]
+		char2 := bc2[i]
+		// Check for incompatibility: if neither is 'N' and they differ
+		if char1 != 'N' && char2 != 'N' && char1 != char2 {
 			return false
 		}
 	}
+	// If we finish the loop without finding incompatibilities in the prefix, they are compatible
 	return true
 }
 
@@ -329,19 +338,39 @@ func groupBarcodes(results []processResult) map[string][]string {
 	}
 	return groups
 }
-func checkGroupUniformity(barcodeGroups map[string][]string) map[string]bool {
+
+// Updated checkGroupUniformityPrefix function
+func checkGroupUniformityPrefix(barcodeGroups map[string][]string) map[string]bool {
 	isUniform := make(map[string]bool)
 	for sample, barcodes := range barcodeGroups {
 		if len(barcodes) <= 1 {
-			isUniform[sample] = true
+			isUniform[sample] = true // Uniform if 0 or 1 valid barcode
 			continue
 		}
+
+		// Find the minimum length among valid barcodes in this group
+		shortestLen := math.MaxInt32 // Start with a large number
+		for _, bc := range barcodes {
+			if len(bc) < shortestLen {
+				shortestLen = len(bc)
+			}
+		}
+
+		// If shortestLen is still MaxInt32, it means no valid barcodes were found
+		// Or if shortest length is 0, comparison is meaningless
+		if shortestLen == math.MaxInt32 || shortestLen == 0 {
+			isUniform[sample] = true // Treat as uniform if no comparable barcodes
+			continue
+		}
+
+		// Check compatibility based on the prefix of shortestLen
 		referenceBarcode := barcodes[0]
 		allCompatible := true
 		for i := 1; i < len(barcodes); i++ {
-			if !areBarcodesCompatibleGo(referenceBarcode, barcodes[i]) {
+			// Use the compatibility check with the calculated shortest length
+			if !areBarcodesCompatibleGo(referenceBarcode, barcodes[i], shortestLen) {
 				allCompatible = false
-				break
+				break // Found incompatibility
 			}
 		}
 		isUniform[sample] = allCompatible
@@ -349,51 +378,35 @@ func checkGroupUniformity(barcodeGroups map[string][]string) map[string]bool {
 	return isUniform
 }
 
-// --- Table Generation (Re-enabled Colors with AutoMerge) ---
+// --- Table Generation (remains the same as the last version) ---
 func printResultsTableAqua(results []processResult, isGroupUniform map[string]bool, yamlBaseName string, recordsChecked int) {
 	t := table.New(os.Stdout)
-	t.SetAutoMerge(true) // Keep AutoMerge enabled
-
-	// Re-introduce color variables
+	t.SetAutoMerge(true)
 	colorCycle := []*color.Color{color.New(color.FgMagenta), color.New(color.FgCyan)}
 	redColor := color.New(color.FgRed, color.Bold)
 	yellowColor := color.New(color.FgYellow)
 	greenColor := color.New(color.FgGreen)
-	// dimColor is not needed for sample name merging with SetAutoMerge
-
-	// Create colored headers
 	header1 := color.New(color.FgCyan, color.Bold).Sprint("Sample")
 	header2 := color.New(color.FgCyan, color.Bold).Sprint("R1 File")
 	header3 := color.New(color.FgCyan, color.Bold).Sprintf("Most Common Barcode\n(first %d records)", recordsChecked)
-
 	t.SetHeaders(header1, header2, header3)
 	t.SetHeaderStyle(table.StyleBold)
 	t.SetLineStyle(table.StyleBlue)
 	t.SetDividers(table.UnicodeRoundedDividers)
-
-	// Use this to track *only* for R1 color cycling logic
 	previousSampleNameForColor := ""
 	currentColorIndex := -1
-
 	for _, row := range results {
-		currentSampleName := row.SampleName // Use the actual sample name
+		currentSampleName := row.SampleName
 		displayR1 := row.RelativePath
 		displayBarcode := row.Barcode
-
-		// --- Styling Logic ---
 		var activeColor *color.Color
-
-		// 1. R1 Color Cycling (Based on actual name change)
 		if currentSampleName != previousSampleNameForColor {
 			currentColorIndex = (currentColorIndex + 1) % len(colorCycle)
 		}
 		activeColor = colorCycle[currentColorIndex]
-		// Apply color to R1 string
 		styledR1 := activeColor.Sprint(displayR1)
-
-		// 2. Barcode Highlighting
-		styledBarcode := ""                            // Start with empty, apply style below
-		isUniform := isGroupUniform[currentSampleName] // Default is false if key missing
+		styledBarcode := ""
+		isUniform := isGroupUniform[currentSampleName]
 		isError := false
 		for msg := range errorMessages {
 			if strings.HasPrefix(displayBarcode, msg) {
@@ -401,25 +414,20 @@ func printResultsTableAqua(results []processResult, isGroupUniform map[string]bo
 				break
 			}
 		}
-
 		if isError {
 			styledBarcode = yellowColor.Sprint(displayBarcode)
 		} else if !isUniform {
-			styledBarcode = redColor.Sprint(displayBarcode) // Red for non-uniform
+			styledBarcode = redColor.Sprint(displayBarcode)
 		} else {
-			styledBarcode = greenColor.Sprint(displayBarcode) // Green for uniform
+			styledBarcode = greenColor.Sprint(displayBarcode)
 		}
-
-		// --- Add Row Data ---
-		// Pass the PLAIN sample name for AutoMerge to work correctly on this column.
-		// Pass the STYLED strings for R1 and Barcode.
 		t.AddRow(currentSampleName, styledR1, styledBarcode)
-
-		// Update tracker for the next iteration's color cycling check
 		previousSampleNameForColor = currentSampleName
 	}
-
 	fmt.Println()
 	t.Render()
 	fmt.Println("Processed on " + yamlBaseName)
 }
+
+// --- Entry Point / Other Helpers (ensure main package calls cmd.Execute()) ---
+// ... (make sure functions like areBarcodesCompatibleGo are defined correctly) ...
