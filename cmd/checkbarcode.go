@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 
@@ -90,7 +89,7 @@ func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) {
 	}
 	results := processFilesConcurrently(filesToProcess, recordsToCheck)
 	if len(results) > 0 {
-		sort.Slice(results, func(i, j int) bool { return results[i].SampleName < results[j].SampleName })
+		// sort.Slice(results, func(i, j int) bool { return results[i].SampleName < results[j].SampleName })
 		barcodeGroups := groupBarcodes(results)
 		// Use the updated uniformity check
 		isGroupUniform := checkGroupUniformityPrefix(barcodeGroups)
