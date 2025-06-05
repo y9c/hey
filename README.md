@@ -4,10 +4,10 @@
 
 1.  **Download** the appropriate `.tar.gz` files
 
-    - **Linux (amd64)**: [Download hey-latest-linux-amd64.tar.gz](https://github.com/YOUR_USERNAME/YOUR_REPONAME/releases/download/latest/hey-latest-linux-amd64.tar.gz)
-    - **Linux (arm64)**: [Download hey-latest-linux-arm64.tar.gz](https://github.com/YOUR_USERNAME/YOUR_REPONAME/releases/download/latest/hey-latest-linux-arm64.tar.gz)
-    - **macOS (amd64/Intel)**: [Download hey-latest-darwin-amd64.tar.gz](https://github.com/YOUR_USERNAME/YOUR_REPONAME/releases/download/latest/hey-latest-darwin-amd64.tar.gz)
-    - **macOS (arm64/Apple Silicon)**: [Download hey-latest-darwin-arm64.tar.gz](https://github.com/YOUR_USERNAME/YOUR_REPONAME/releases/download/latest/hey-latest-darwin-arm64.tar.gz)
+    - **Linux (amd64)**: [hey-latest-linux-amd64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-linux-amd64.tar.gz)
+    - **Linux (arm64)**: [hey-latest-linux-arm64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-linux-arm64.tar.gz)
+    - **macOS (amd64/Intel)**: [hey-latest-darwin-amd64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-darwin-amd64.tar.gz)
+    - **macOS (arm64/Apple Silicon)**: [hey-latest-darwin-arm64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-darwin-arm64.tar.gz)
 
 > [!TIP]
 > These binaries are built automatically with each push to the main branch and represent the latest development version.
