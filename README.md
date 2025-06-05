@@ -4,8 +4,8 @@
 
 1.  **Download** the appropriate `.tar.gz` files
 
-    > [!TIP]
-    > These binaries are built automatically with each push to the main branch and represent the latest development version.
+> [!TIP]
+> These binaries are built automatically with each push to the main branch and represent the latest development version.
 
     - **Linux (amd64)**: [Download hey-latest-linux-amd64.tar.gz](https://github.com/YOUR_USERNAME/YOUR_REPONAME/releases/download/latest/hey-latest-linux-amd64.tar.gz)
     - **Linux (arm64)**: [Download hey-latest-linux-arm64.tar.gz](https://github.com/YOUR_USERNAME/YOUR_REPONAME/releases/download/latest/hey-latest-linux-arm64.tar.gz)
