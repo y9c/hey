@@ -28,7 +28,7 @@ const (
 
 var sam2pairwiseCmd = &cobra.Command{
 	Use:     "sam2pairwise [-m REF>ALT] [-l MARK] [-f] [-r] [-t TAG]...",
-	Aliases: []string{"s2p"}, // Alias added
+	Aliases: []string{"sam", "s2p"}, // Alias added
 	Short:   "Convert SAM records from stdin into pairwise alignment format",
 	Long: `Processes SAM records, parsing CIGAR and MD tags to generate pairwise alignments.
 
