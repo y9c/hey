@@ -15,24 +15,12 @@ import (
 )
 
 var adapterSequences = map[string]string{
-	"AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT":    "Illumina Single End PCR Primer 1",
-	"ACAGGTTCAGAGTTCTACAGTCCGAC":                                    "Illumina DpnII expression Adapter 1",
-	"CAAGCAGAAGACGGCATACGAGATCGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT": "Illumina Paired End PCR Primer 2",
-	"CAAGCAGAAGACGGCATACGAGCTCTTCCGATCT":                            "Illumina Single End Adapter 2",
-	"CCACTACGCCTCCGCTTTCCTCTCTATGGGCAGTCGGTGAT":                     "ABI Solid3 Adapter B",
-	"CGACAGGTTCAGAGTTCTACAGTCCGACGATC":                              "Illumina 5p RNA Adapter",
-	"CGGTCTCGGCATTCCTGCTGAACCGCTCTTCCGATCT":                         "Illumina Paired End Sequencing Primer 2",
-	"CTGATCTAGAGGTACCGGATCCCAGCAGT":                                 "ABI Dynabead EcoP Oligo",
-	"CTGCCCCGGGTTCCTCATTCTCTCAGCAGCATG":                             "ABI Solid3 Adapter A",
-	"GATCGGAAGAGCACACGTCTGAACTCCAGTCAC":                             "Illumina Multiplexing Adapter 1",
-	"GATCGGAAGAGCGGTTCAGCAGGAATGCCGAG":                              "Illumina Paired End Adapter 2",
-	"GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG":                             "Illumina Single End Adapter 1",
-	"GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT":                            "TruSeq Multiplexing Read 2 Sequencing Primer",
-	"TGGAATTCTCGGGTGCCAAGG":                                         "Illumina Small RNA 3p Adapter 1",
-	"CTGTCTCTTATACACATCT":                                           "Tn5 ME Adapter",
-	"AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT":                             "TruSeq P5 Adapter",
-	"GATCGTCGGACTGTAGAACTCTGAAC":                                    "Samll RNA P5 Adapter",
-	"TCGGACTGTAGAACTCTGAACGTG":                                      "Small RNA P5 Adapter Partial",
+	"AGATCGGAAGAGCACACGTC": "TruSeq P7 Adapter",
+	"GATCGGAAGAGCACACGTCT": "TruSeq P7 Adapter (-1)",
+	"TGGAATTCTCGGGTGCCAAG": "Small RNA 3p (legacy)",
+	"AGATCGGAAGAGCGTCGTGT": "TruSeq P5 Adapter",
+	"GATCGTCGGACTGTAGAACT": "Samll RNA P5 Adapter",
+	"CTGTCTCTTATACACATCT":  "Tn5 ME Adapter",
 }
 
 // fastqCmd represents the fastq command
