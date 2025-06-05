@@ -30,7 +30,7 @@ jobs:
           goarch: ${{ matrix.goarch }}
           # goversion: '1.24.2'
           binary_name: 'hey'
-          extra_files: LICENSE README.md
+          # extra_files: LICENSE README.md
           release_tag: 'latest'
           md5sum: false
           overwrite: true
