@@ -1,16 +1,19 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"log"
-	"math/rand"
+	"math/big" // Used for cryptographically secure random port number
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -26,10 +29,9 @@ var (
 
 	openCmd = &cobra.Command{
 		Use:   "open [path]",
-		Short: "Open file or directory in a browser with a beautiful server UI",
-		Long: `Serves a file or directory with a modern web interface.
-When serving a directory, it provides a beautiful file listing and supports drag-and-drop file uploads.
-A QR code is also generated for easy access from mobile devices.`,
+		Short: "Open file or directory in a browser with a beautiful, secure server UI",
+		Long: `Serves a file or directory with a modern web interface protected by a unique access token.
+A new token is generated each time the server starts. The URL with the token is printed and available via QR code.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("requires a file or directory path")
@@ -39,8 +41,12 @@ A QR code is also generated for easy access from mobile devices.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			urlBase := fmt.Sprintf("%s:%s", inputAddress, inputPort)
 			fileDir, fileBase := parsePath(args[0])
-			qrCode(urlBase, fileBase)
-			serveFiles(urlBase, fileDir)
+			token, err := generateRandomToken(16)
+			if err != nil {
+				log.Fatalf("FATAL: Could not generate security token: %v", err)
+			}
+			qrCode(urlBase, fileBase, token)
+			serveFiles(urlBase, fileDir, token)
 		},
 	}
 )
@@ -51,11 +57,11 @@ const htmlTemplate = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hey! File Server</title>
+    <title>File Server</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f8f9fa; color: #343a40; }
         .container { max-width: 800px; margin: 40px auto; padding: 0 20px; }
-        h1, h2 { color: #007bff; border-bottom: 2px solid #dee2e6; padding-bottom: 10px; }
+        h2 { color: #007bff; border-bottom: 2px solid #dee2e6; padding-bottom: 10px; margin-top: 40px;}
         .upload-box { border: 3px dashed #007bff; border-radius: 10px; padding: 40px; text-align: center; margin-bottom: 30px; background-color: #fff; transition: background-color 0.2s ease-in-out; cursor: pointer; }
         .upload-box p { margin: 0 0 15px 0; font-size: 1.2em; }
         .upload-box:hover, .upload-box.dragover { background-color: #e9ecef; }
@@ -64,7 +70,7 @@ const htmlTemplate = `
         .file-list li { padding: 12px 15px; border-bottom: 1px solid #dee2e6; display: flex; align-items: center; transition: background-color 0.2s; }
         .file-list li:last-child { border-bottom: none; }
         .file-list li:hover { background-color: #f1f3f5; }
-        .file-list a { text-decoration: none; color: #495057; font-size: 1.1em; }
+        .file-list a { text-decoration: none; color: #495057; font-size: 1.1em; word-break: break-all; }
         .file-list .icon { margin-right: 15px; width: 24px; text-align: center; font-size: 1.4em; }
         .folder a { font-weight: bold; color: #0056b3; }
         #upload-progress-container { width: 100%; background-color: #e9ecef; border-radius: 5px; display: none; margin-top: 15px; }
@@ -73,7 +79,6 @@ const htmlTemplate = `
 </head>
 <body>
     <div class="container">
-        <h1>Hey! File Server</h1>
         
         <h2>Upload Files</h2>
         <div id="drop-zone" class="upload-box">
@@ -85,13 +90,13 @@ const htmlTemplate = `
         <h2>Files</h2>
         <ul class="file-list">
             {{if .ParentDir}}
-                <li class="folder"><span class="icon">&#128194;</span><a href="{{.ParentDir}}">.. (Parent Directory)</a></li>
+                <li class="folder"><span class="icon">📂</span><a href="{{.ParentDir}}?token={{.Token}}">.. (Parent Directory)</a></li>
             {{end}}
             {{range .Dirs}}
-                <li class="folder"><span class="icon">&#128193;</span><a href="{{.}}/">{{.}}</a></li>
+                <li class="folder"><span class="icon">📁</span><a href="{{.}}/?token={{$.Token}}">{{.}}</a></li>
             {{end}}
             {{range .Files}}
-                <li><span class="icon">&#128196;</span><a href="{{.}}">{{.}}</a></li>
+                <li><span class="icon">📄</span><a href="{{.}}?token={{$.Token}}">{{.}}</a></li>
             {{end}}
         </ul>
     </div>
@@ -101,70 +106,48 @@ const htmlTemplate = `
         const fileInput = document.getElementById('file-input');
         const progressContainer = document.getElementById('upload-progress-container');
 		const progressBar = document.getElementById('upload-progress');
-
-		// Make the entire dropzone clickable
 		dropZone.addEventListener('click', () => fileInput.click());
-
-        // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, preventDefaults, false);
             document.body.addEventListener(eventName, preventDefaults, false);
         });
-
-        // Highlight drop zone when item is dragged over it
         ['dragenter', 'dragover'].forEach(eventName => {
             dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
         });
         ['dragleave', 'drop'].forEach(eventName => {
             dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
         });
-
-        // Handle dropped files
         dropZone.addEventListener('drop', handleDrop, false);
-
-        // Handle file selection from input
         fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        function handleDrop(e) {
-            let dt = e.dataTransfer;
-            let files = dt.files;
-            handleFiles(files);
-        }
-
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+        function handleDrop(e) { handleFiles(e.dataTransfer.files); }
         function handleFiles(files) {
             if (files.length === 0) return;
             progressContainer.style.display = 'block';
             progressBar.style.width = '0%';
-            uploadFile(files[0]); // For simplicity, this example uploads one file at a time from a selection
+            uploadFile(files[0]);
         }
-
         function uploadFile(file) {
-            let url = '/upload';
+            let url = '/upload?token={{.Token}}';
             let formData = new FormData();
             formData.append('file', file);
-
             let xhr = new XMLHttpRequest();
             xhr.open('POST', url, true);
-
             xhr.upload.addEventListener('progress', (e) => {
                 let percent = (e.lengthComputable) ? (e.loaded / e.total) * 100 : 0;
                 progressBar.style.width = percent + '%';
             });
-
             xhr.addEventListener('readystatechange', () => {
                 if (xhr.readyState == 4 && xhr.status == 200) {
-                    location.reload(); // Success, reload page to show new file
+                    const newUrl = new URL(window.location.href);
+                    newUrl.searchParams.set('token', '{{.Token}}');
+                    window.location.href = newUrl.href;
+                    window.location.reload();
                 } else if (xhr.readyState == 4 && xhr.status != 200) {
-                    alert('Upload failed.');
+                    alert('Upload failed: ' + xhr.statusText);
                     progressContainer.style.display = 'none';
                 }
             });
-
             xhr.send(formData);
         }
     </script>
@@ -174,35 +157,51 @@ const htmlTemplate = `
 
 func init() {
 	rootCmd.AddCommand(openCmd)
-
 	allAddress := getIPs()
 	defaultGateway := getGateway()
 	var defaultAddress string
 	if len(allAddress) > 0 {
-		pre := defaultGateway[:strings.LastIndex(defaultGateway, ".")]
 		defaultAddress = allAddress[0]
-		for _, address := range allAddress {
-			if strings.HasPrefix(address, pre) {
-				defaultAddress = address
-				break
+		if defaultGateway != "" {
+			if lastIndex := strings.LastIndex(defaultGateway, "."); lastIndex != -1 {
+				pre := defaultGateway[:lastIndex]
+				for _, address := range allAddress {
+					if strings.HasPrefix(address, pre) {
+						defaultAddress = address
+						break
+					}
+				}
 			}
 		}
 	} else {
 		defaultAddress = "127.0.0.1"
 	}
-
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
-	rand.Seed(time.Now().UnixNano())
-	defaultPort := fmt.Sprintf("%d", 60000+rand.Intn(3000))
+
+	// Use crypto/rand for a secure random port number.
+	randPort, err := rand.Int(rand.Reader, big.NewInt(3000))
+	var portOffset int64
+	if err != nil {
+		// Fallback to a less random number if crypto/rand fails
+		portOffset = time.Now().UnixMilli() % 3000
+	} else {
+		portOffset = randPort.Int64()
+	}
+	defaultPort := fmt.Sprintf("%d", 60000+portOffset)
 	openCmd.Flags().StringVarP(&inputPort, "port", "p", defaultPort, "set port number")
 }
 
-func qrCode(urlBase, fileBase string) {
-	url := fmt.Sprintf("http://%s/%s", urlBase, fileBase)
-	fmt.Printf("\nScan the QR code to open file in mobile phone, or open this link in browser.\n")
+func qrCode(urlBase, fileBase, token string) {
+	path := "/"
+	if fileBase != "" {
+		path = "/" + fileBase
+	}
+	url := fmt.Sprintf("http://%s%s?token=%s", urlBase, path, token)
+
+	fmt.Printf("\nScan the QR code to open file in mobile phone, or open this secure link in browser.\n")
 	q, err := qrcode.New(url, qrcode.Low)
 	if err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Printf("could not generate QR code: %v\n", err)
 		return
 	}
 	fmt.Printf(q.ToSmallString(false))
@@ -239,7 +238,7 @@ func parsePath(path string) (string, string) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("file (%s) does not exist!\n", path)
+			fmt.Printf("file or directory (%s) does not exist!\n", path)
 		}
 		os.Exit(1)
 	}
@@ -262,8 +261,44 @@ func parsePath(path string) (string, string) {
 	return fileDir, fileBase
 }
 
-func serveFiles(urlBase, fileDir string) {
-	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+func generateRandomToken(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+func panicMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("FATAL: server crashed with panic: %v\n%s", err, string(debug.Stack()))
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+func tokenAuthMiddleware(next http.Handler, token string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/favicon.ico" {
+			http.NotFound(w, r)
+			return
+		}
+		queryToken := r.URL.Query().Get("token")
+		if queryToken == token {
+			next.ServeHTTP(w, r)
+		} else {
+			http.Error(w, "Forbidden: Invalid or missing token.", http.StatusForbidden)
+		}
+	})
+}
+
+func serveFiles(urlBase, fileDir, token string) {
+	appMux := http.NewServeMux()
+	appMux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -301,28 +336,32 @@ func serveFiles(urlBase, fileDir string) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	appMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fullPath := filepath.Join(fileDir, r.URL.Path)
+		absFileDir, _ := filepath.Abs(fileDir)
+		absFullPath, _ := filepath.Abs(fullPath)
+		if !strings.HasPrefix(absFullPath, absFileDir) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
 		info, err := os.Stat(fullPath)
 		if os.IsNotExist(err) {
 			http.NotFound(w, r)
 			return
-		} else if err != nil {
+		}
+		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-
 		if !info.IsDir() {
 			http.ServeFile(w, r, fullPath)
 			return
 		}
-
 		entries, err := os.ReadDir(fullPath)
 		if err != nil {
 			http.Error(w, "Failed to read directory", http.StatusInternalServerError)
 			return
 		}
-
 		var dirs, files []string
 		for _, entry := range entries {
 			if entry.IsDir() {
@@ -333,22 +372,16 @@ func serveFiles(urlBase, fileDir string) {
 		}
 		sort.Strings(dirs)
 		sort.Strings(files)
-
-		parentDir := ""
-		if fullPath != fileDir {
-			parentDir = filepath.Dir(r.URL.Path)
+		var parentDir string
+		if absFullPath != absFileDir {
+			parentDir = filepath.Join(r.URL.Path, "..")
 		}
-
 		data := struct {
-			Dirs      []string
-			Files     []string
-			ParentDir string
+			Dirs, Files      []string
+			ParentDir, Token string
 		}{
-			Dirs:      dirs,
-			Files:     files,
-			ParentDir: parentDir,
+			Dirs: dirs, Files: files, ParentDir: parentDir, Token: token,
 		}
-
 		tmpl, err := template.New("dir").Parse(htmlTemplate)
 		if err != nil {
 			log.Printf("Template parsing error: %v", err)
@@ -363,8 +396,10 @@ func serveFiles(urlBase, fileDir string) {
 		}
 	})
 
-	log.Printf("Serving %s on http://%s\n", fileDir, urlBase)
-	if err := http.ListenAndServe(urlBase, nil); err != nil {
+	finalHandler := panicMiddleware(tokenAuthMiddleware(appMux, token))
+
+	log.Printf("Starting server. Access it at http://%s/?token=%s (Serving %s)", urlBase, token, fileDir)
+	if err := http.ListenAndServe(urlBase, finalHandler); err != nil {
 		panic(err)
 	}
 }
