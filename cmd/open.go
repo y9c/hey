@@ -8,7 +8,7 @@ import (
 	"html/template"
 	"io"
 	"log"
-	"math/big" // Used for cryptographically secure random port number
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -30,8 +30,7 @@ var (
 	openCmd = &cobra.Command{
 		Use:   "open [path]",
 		Short: "Open file or directory in a browser with a beautiful, secure server UI",
-		Long: `Serves a file or directory with a modern web interface protected by a unique access token.
-A new token is generated each time the server starts. The URL with the token is printed and available via QR code.`,
+		Long:  `Serves a file or directory with a modern web interface protected by a unique access token.`,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("requires a file or directory path")
@@ -178,16 +177,27 @@ func init() {
 	}
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
 
-	// Use crypto/rand for a secure random port number.
-	randPort, err := rand.Int(rand.Reader, big.NewInt(3000))
+	// --- Port selection logic based on hostname ---
+	hostname, err := os.Hostname()
+	var portBase int64 = 60000
+	var portRange int64 = 3000
+
+	// If hostname starts with "midway3", change the port range.
+	if err == nil && strings.HasPrefix(hostname, "midway3") {
+		// log.Println("Midway3 environment detected, using port range 5000-5999.")
+		portBase = 5000
+		portRange = 1000
+	}
+
+	randPort, err := rand.Int(rand.Reader, big.NewInt(portRange))
 	var portOffset int64
 	if err != nil {
-		// Fallback to a less random number if crypto/rand fails
-		portOffset = time.Now().UnixMilli() % 3000
+		log.Printf("Warning: crypto/rand failed for port selection: %v. Using time-based fallback.", err)
+		portOffset = time.Now().UnixNano() % portRange
 	} else {
 		portOffset = randPort.Int64()
 	}
-	defaultPort := fmt.Sprintf("%d", 60000+portOffset)
+	defaultPort := fmt.Sprintf("%d", portBase+portOffset)
 	openCmd.Flags().StringVarP(&inputPort, "port", "p", defaultPort, "set port number")
 }
 
@@ -398,7 +408,7 @@ func serveFiles(urlBase, fileDir, token string) {
 
 	finalHandler := panicMiddleware(tokenAuthMiddleware(appMux, token))
 
-	log.Printf("Starting server. Access it at http://%s/?token=%s (Serving %s)", urlBase, token, fileDir)
+	// log.Printf("Starting server. Access it at http://%s/?token=%s (Serving %s)", urlBase, token, fileDir)
 	if err := http.ListenAndServe(urlBase, finalHandler); err != nil {
 		panic(err)
 	}
