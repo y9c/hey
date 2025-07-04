@@ -160,17 +160,30 @@ func processSAMStdin() {
 				continue
 			}
 
+			isPaired := (flag & 0x1) != 0
 			isRead1 := (flag & 0x40) != 0
 			isRead2 := (flag & 0x80) != 0
 			isReverse := (flag & 0x10) != 0
 
 			if filterForward {
-				if !((isRead1 && !isReverse) || (isRead2 && isReverse)) {
-					continue
+				if !isPaired {
+					if isReverse {
+						continue
+					}
+				} else {
+					if !((isRead1 && !isReverse) || (isRead2 && isReverse)) {
+						continue
+					}
 				}
 			} else if filterReverse {
-				if !((isRead1 && isReverse) || (isRead2 && !isReverse)) {
-					continue
+				if !isPaired {
+					if !isReverse {
+						continue
+					}
+				} else {
+					if !((isRead1 && isReverse) || (isRead2 && !isReverse)) {
+						continue
+					}
 				}
 			}
 		}
