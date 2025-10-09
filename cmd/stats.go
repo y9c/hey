@@ -94,7 +94,9 @@ func transposeMatrix(filenames []string) {
 	t := table.New(os.Stdout)
 	headers := append([]string{""}, filenames...)
 	for i := range headers {
-		headers[i] = tml.Sprintf("<blue>%s</blue>", headers[i]) // Apply blue color without numbering
+		headers[i] = tml.Sprintf(
+			"<blue>%s</blue>", strings.TrimSuffix(headers[i], ".tsv")
+		) // Apply blue color without numbering
 	}
 	t.SetHeaders(headers...)
 	t.SetHeaderStyle(table.StyleBold)
