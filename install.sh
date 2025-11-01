@@ -78,10 +78,16 @@ else
 fi
 
 # Check if INSTALL_DIR is in PATH
-if ! [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
-    echo "Warning: '$INSTALL_DIR' is not in your PATH."
-    echo "Please add the following line to your ~/.bashrc or ~/.zshrc:"
-    echo "export PATH=\"$PATH:$INSTALL_DIR\""
-fi
+case ":$PATH:" in
+    *":$INSTALL_DIR:"*)
+        # In PATH, do nothing
+        ;;
+    *)
+        # Not in PATH, print warning
+        echo "Warning: '$INSTALL_DIR' is not in your PATH."
+        echo "Please add the following line to your ~/.bashrc or ~/.zshrc:"
+        echo "export PATH=\"$PATH:$INSTALL_DIR\""
+        ;;
+esac
 
 echo "Installation complete. You can now use the 'hey' command."
