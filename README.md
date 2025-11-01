@@ -7,7 +7,7 @@ Pre-built binaries are available at [https://github.com/y9c/hey/releases/tag/lat
 To install or upgrade `hey`, use the provided `install.sh` script:
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/y9c/hey/main/install.sh | sh
+curl -sfL https://raw.githubusercontent.com/y9c/hey/master/install.sh | sh
 ```
 
 This script will automatically detect your system, download the appropriate binary, and install it to a suitable location in your PATH.
