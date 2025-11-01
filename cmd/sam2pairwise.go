@@ -616,7 +616,7 @@ func samToPairwise(seq string, qual string, qualityCutoff int, cigar string, mdT
 
 func applyColor(builder *strings.Builder, base byte, shouldHighlight bool, lowQuality bool) {
 	if lowQuality {
-		builder.WriteString("<white>")
+		builder.WriteString("<lightgrey>")
 	}
 
 	color := ""
@@ -671,7 +671,7 @@ func applyColor(builder *strings.Builder, base byte, shouldHighlight bool, lowQu
 	}
 
 	if lowQuality {
-		builder.WriteString("</white>")
+		builder.WriteString("</lightgrey>")
 	}
 }
 
