@@ -19,6 +19,7 @@ var (
 	filterForward     bool
 	filterReverse     bool
 	tagKeys           []string // For storing custom tags from -t flag
+	qualityCutoff     int      // Quality score cutoff
 )
 
 const (
@@ -86,6 +87,7 @@ func init() {
 	sam2pairwiseCmd.Flags().BoolVarP(&filterForward, "forward", "f", false, "Filter for Read 1 Forward or Read 2 Reverse")
 	sam2pairwiseCmd.Flags().BoolVarP(&filterReverse, "reverse", "r", false, "Filter for Read 1 Reverse or Read 2 Forward")
 	sam2pairwiseCmd.Flags().StringSliceVarP(&tagKeys, "tag", "t", []string{"MD"}, "Tag(s) to show in the name line (default MD). Can be used multiple times.")
+	sam2pairwiseCmd.Flags().IntVarP(&qualityCutoff, "quality-cutoff", "q", 0, "Quality score cutoff for highlighting bases (default 0, disabled)")
 }
 
 func processSAMStdin() {
@@ -132,6 +134,7 @@ func processSAMStdin() {
 		pos := fields[3]
 		cigar := fields[5]
 		seq := fields[9]
+		qual := fields[10]
 
 		var outputTagValues []string // To store the values of the requested tags for the info line
 
@@ -197,7 +200,7 @@ func processSAMStdin() {
 			}
 		}
 
-		refSeq, alignedSeq, markers, err := samToPairwise(seq, cigar, mdTagForAlignment, useKnownMutation, knownRefBase, knownAltBase, markChar)
+		refSeq, alignedSeq, markers, err := samToPairwise(seq, qual, qualityCutoff, cigar, mdTagForAlignment, useKnownMutation, knownRefBase, knownAltBase, markChar)
 		if err != nil {
 			if continueProcessing {
 				// Suppress error for potentially truncated final lines if interrupted
@@ -352,7 +355,7 @@ func parseMDTag(mdTag string) ([]MDTagEntry, error) {
 	return entries, nil
 }
 
-func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool, knownRefBase byte, knownAltBase byte, markChar rune) (refSeqColored string, alignedSeqColored string, markers string, err error) {
+func samToPairwise(seq string, qual string, qualityCutoff int, cigar string, mdTag string, useKnownMutation bool, knownRefBase byte, knownAltBase byte, markChar rune) (refSeqColored string, alignedSeqColored string, markers string, err error) {
 	var refBuilder, alignedSeqBuilder, markerBuilder strings.Builder
 	seqPos := 0
 
@@ -460,8 +463,15 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 						shouldHighlightRef = true
 					}
 				}
-				applyColor(&alignedSeqBuilder, readBase, shouldHighlightRead)
-				applyColor(&refBuilder, refBase, shouldHighlightRef)
+				lowQuality := false
+				if qualityCutoff > 0 && seqPos < len(qual) {
+					qualityScore := int(qual[seqPos]) - 33
+					if qualityScore < qualityCutoff {
+						lowQuality = true
+					}
+				}
+				applyColor(&alignedSeqBuilder, readBase, shouldHighlightRead, lowQuality)
+				applyColor(&refBuilder, refBase, shouldHighlightRef, false)
 				markerBuilder.WriteRune(marker)
 				seqPos++
 			}
@@ -472,8 +482,15 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 					return "", "", "", fmt.Errorf("CIGAR I asks for base %d but sequence length is %d", seqPos+1, len(seq))
 				}
 				readBase := seq[seqPos]
-				applyColor(&alignedSeqBuilder, readBase, true)
-				applyColor(&refBuilder, '-', true)
+				lowQuality := false
+				if qualityCutoff > 0 && seqPos < len(qual) {
+					qualityScore := int(qual[seqPos]) - 33
+					if qualityScore < qualityCutoff {
+						lowQuality = true
+					}
+				}
+				applyColor(&alignedSeqBuilder, readBase, true, lowQuality)
+				applyColor(&refBuilder, '-', true, false)
 				markerBuilder.WriteByte(' ')
 				seqPos++
 			}
@@ -483,8 +500,8 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 					// Suppress warning
 				}
 				for range length { // Modernized loop
-					applyColor(&alignedSeqBuilder, '-', true)
-					applyColor(&refBuilder, 'N', true)
+					applyColor(&alignedSeqBuilder, '-', true, false)
+					applyColor(&refBuilder, 'N', true, false)
 					markerBuilder.WriteByte(' ')
 				}
 			} else {
@@ -498,8 +515,8 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 							// Suppress warning
 						}
 						for range length - deletedBasesFound { // Modernized loop
-							applyColor(&alignedSeqBuilder, '-', true)
-							applyColor(&refBuilder, 'N', true)
+							applyColor(&alignedSeqBuilder, '-', true, false)
+							applyColor(&refBuilder, 'N', true, false)
 							markerBuilder.WriteByte(' ')
 						}
 						deletedBasesFound = length
@@ -516,8 +533,8 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 
 						for j := range basesToTake { // Modernized loop
 							delBase := currentMdEntry.Changes[mdSubPos+j]
-							applyColor(&alignedSeqBuilder, '-', true)
-							applyColor(&refBuilder, delBase, true)
+							applyColor(&alignedSeqBuilder, '-', true, false)
+							applyColor(&refBuilder, delBase, true, false)
 							markerBuilder.WriteByte(' ')
 						}
 						deletedBasesFound += basesToTake
@@ -548,8 +565,8 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 				markerBuilder.WriteString(strings.Repeat(" ", displayWidth))
 			} else {
 				for range length { // Modernized loop
-					applyColor(&alignedSeqBuilder, '.', false)
-					applyColor(&refBuilder, 'N', false)
+					applyColor(&alignedSeqBuilder, '.', false, false)
+					applyColor(&refBuilder, 'N', false, false)
 					markerBuilder.WriteByte(' ')
 				}
 			}
@@ -559,8 +576,15 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 					return "", "", "", fmt.Errorf("CIGAR S asks for base %d but sequence length is %d", seqPos+1, len(seq))
 				}
 				readBase := seq[seqPos]
-				applyColor(&alignedSeqBuilder, readBase, true)
-				applyColor(&refBuilder, '.', false)
+				lowQuality := false
+				if qualityCutoff > 0 && seqPos < len(qual) {
+					qualityScore := int(qual[seqPos]) - 33
+					if qualityScore < qualityCutoff {
+						lowQuality = true
+					}
+				}
+				applyColor(&alignedSeqBuilder, readBase, true, lowQuality)
+				applyColor(&refBuilder, '.', false, false)
 				markerBuilder.WriteByte(' ')
 				seqPos++
 			}
@@ -568,8 +592,8 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 			continue
 		case 'P':
 			for range length { // Modernized loop
-				applyColor(&alignedSeqBuilder, '*', true)
-				applyColor(&refBuilder, '*', true)
+				applyColor(&alignedSeqBuilder, '*', true, false)
+				applyColor(&refBuilder, '*', true, false)
 				markerBuilder.WriteByte(' ')
 			}
 		default:
@@ -590,7 +614,14 @@ func samToPairwise(seq string, cigar string, mdTag string, useKnownMutation bool
 	return refBuilder.String(), alignedSeqBuilder.String(), markerBuilder.String(), nil
 }
 
-func applyColor(builder *strings.Builder, base byte, shouldHighlight bool) {
+func applyColor(builder *strings.Builder, base byte, shouldHighlight bool, lowQuality bool) {
+	if lowQuality {
+		builder.WriteString("<cyan>")
+		builder.WriteByte(base)
+		builder.WriteString("</cyan>")
+		return
+	}
+
 	color := ""
 	if shouldHighlight {
 		switch base {

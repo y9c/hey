@@ -1,38 +1,16 @@
 # hey
 
-## Downloads and install
+## Installation
 
-1.  **Download** the appropriate `.tar.gz` files
+Pre-built binaries are available at [https://github.com/y9c/hey/releases/tag/latest](https://github.com/y9c/hey/releases/tag/latest).
 
-    - **Linux (amd64)**: [hey-latest-linux-amd64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-linux-amd64.tar.gz)
-    - **Linux (arm64)**: [hey-latest-linux-arm64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-linux-arm64.tar.gz)
-    - **macOS (amd64/Intel)**: [hey-latest-darwin-amd64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-darwin-amd64.tar.gz)
-    - **macOS (arm64/Apple Silicon)**: [hey-latest-darwin-arm64.tar.gz](https://github.com/y9c/hey/releases/download/latest/hey-latest-darwin-arm64.tar.gz)
+To install or upgrade `hey`, use the provided `install.sh` script:
 
-> [!TIP]
-> These binaries are built automatically with each push to the main branch and represent the latest development version.
+```bash
+curl -sfL https://raw.githubusercontent.com/y9c/hey/main/install.sh | sh
+```
 
-2.  **Unzip** the downloaded file.
-
-    ```bash
-    tar -xzf <downloaded_filename.tar.gz>
-    ```
-
-3.  **Make the binary executable** (if necessary):
-
-    ```bash
-    chmod +x hey
-    ```
-
-## Usage
-
-4.  Now you can run the `hey` binary from your terminal:
-
-    ```bash
-    ./hey --help
-    ```
-
-    You might want to move the `hey` binary to a directory in your system's PATH (e.g., `/usr/local/bin` or `~/bin`) to make it accessible from anywhere.
+This script will automatically detect your system, download the appropriate binary, and install it to a suitable location in your PATH.
 
 ## Commands showcase
 
