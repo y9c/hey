@@ -1,4 +1,19 @@
-#!/bin/bash
+#!/bin/sh
+# Version: 3
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+info() {
+    printf "${GREEN}%s${NC}\n" "$1"
+}
+
+warn() {
+    printf "${YELLOW}%s${NC}\n" "$1"
+}
 
 # Exit on error
 set -e
@@ -15,7 +30,7 @@ case "$OS" in
         OS_NAME="darwin"
         ;;
     *)
-        echo "Unsupported OS: $OS"
+        warn "Unsupported OS: $OS"
         exit 1
         ;;
 esac
@@ -28,7 +43,7 @@ case "$ARCH" in
         ARCH_NAME="arm64"
         ;;
     *)
-        echo "Unsupported architecture: $ARCH"
+        warn "Unsupported architecture: $ARCH"
         exit 1
         ;;
 esac
@@ -40,13 +55,11 @@ URL="https://github.com/y9c/hey/releases/download/latest/hey-latest-${OS_NAME}-$
 if [ "$(id -u)" -eq 0 ]; then
     INSTALL_DIR="/usr/local/bin"
 else
-    # Check for ~/.local/bin, then ~/bin
     if [ -d "$HOME/.local/bin" ]; then
         INSTALL_DIR="$HOME/.local/bin"
     elif [ -d "$HOME/bin" ]; then
         INSTALL_DIR="$HOME/bin"
     else
-        # Create ~/.local/bin if it doesn't exist
         INSTALL_DIR="$HOME/.local/bin"
         mkdir -p "$INSTALL_DIR"
     fi
@@ -54,40 +67,37 @@ fi
 
 # Check if hey is already installed
 if [ -f "$INSTALL_DIR/hey" ]; then
-    echo "Existing 'hey' binary found at $INSTALL_DIR. Upgrading..."
+    info "Existing 'hey' binary found at $INSTALL_DIR. Upgrading..."
     IS_UPGRADE=true
 else
-    echo "Installing 'hey' for the first time."
+    info "Installing 'hey' for the first time."
     IS_UPGRADE=false
 fi
 
 # Download and install
-echo "Downloading from $URL"
-# Use a temporary directory for download and extraction
+info "Downloading from $URL"
 TMP_DIR=$(mktemp -d)
 curl -L "$URL" -o "$TMP_DIR/hey.tar.gz"
 tar -xzf "$TMP_DIR/hey.tar.gz" -C "$TMP_DIR"
 mv "$TMP_DIR/hey" "$INSTALL_DIR/hey"
 rm -rf "$TMP_DIR"
 
-
 if [ "$IS_UPGRADE" = true ]; then
-    echo "Successfully upgraded 'hey' to $INSTALL_DIR"
+    info "Successfully upgraded 'hey' to $INSTALL_DIR"
 else
-    echo "Successfully installed 'hey' to $INSTALL_DIR"
+    info "Successfully installed 'hey' to $INSTALL_DIR"
 fi
 
 # Check if INSTALL_DIR is in PATH
 case ":$PATH:" in
-    *":$INSTALL_DIR:"*)
+    *":$INSTALL_DIR:"*) 
         # In PATH, do nothing
         ;;
     *)
-        # Not in PATH, print warning
-        echo "Warning: '$INSTALL_DIR' is not in your PATH."
-        echo "Please add the following line to your ~/.bashrc or ~/.zshrc:"
-        echo "export PATH=\"$PATH:$INSTALL_DIR\""
+        warn "Warning: '$INSTALL_DIR' is not in your PATH."
+        warn "Please add the following line to your ~/.bashrc or ~/.zshrc:"
+        printf "export PATH=\"$INSTALL_DIR:$PATH\"\n"
         ;;
 esac
 
-echo "Installation complete. You can now use the 'hey' command."
+info "Installation complete. You can now use the 'hey' command."
