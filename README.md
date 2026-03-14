@@ -24,6 +24,7 @@ This script will automatically detect your system, download the appropriate bina
   ![](./docs/preview_fastq.png)
 - **sam (sam2pairwise)**: Convert SAM records into pairwise alignment format with highlighting.
   ![](./docs/preview_sam2pairwise.png)
+- **tag (get tag)**: Extract specified tags from SAM records from stdin.
 - **stats**: Concatenate and transpose columns from files into a matrix.
 - **wc**: Count lines, words, and characters in files (gzip supported).
 - **rname**: Identify instrument, flow cell type, and lane from FASTQ read names.
