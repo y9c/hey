@@ -10,6 +10,7 @@ require (
 	github.com/ivanpirog/coloredcobra v1.0.1
 	github.com/jackpal/gateway v1.1.1
 	github.com/liamg/tml v0.7.0
+	github.com/mattn/go-runewidth v0.0.16
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cobra v1.9.1
@@ -21,7 +22,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
