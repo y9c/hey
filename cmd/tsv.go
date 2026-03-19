@@ -244,20 +244,32 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 
 	drawLine := func(y int, left, middle, right, horizontal string, widths []int, startCol int) {
 		currX := self.Inner.Min.X
+		if currX >= self.Inner.Max.X {
+			return
+		}
 		buf.SetString(left, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
 		currX++
 		for i := startCol; i < len(widths); i++ {
 			w := widths[i]
 			if currX+w >= self.Inner.Max.X {
-				buf.SetString(strings.Repeat(horizontal, self.Inner.Max.X-currX-1)+">", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				remaining := self.Inner.Max.X - currX - 1
+				if remaining > 0 {
+					buf.SetString(strings.Repeat(horizontal, remaining)+">", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				} else if remaining == 0 {
+					buf.SetString(">", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				}
 				return
 			}
 			buf.SetString(strings.Repeat(horizontal, w), ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
 			currX += w
 			if i == len(widths)-1 {
-				buf.SetString(right, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				if currX < self.Inner.Max.X {
+					buf.SetString(right, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				}
 			} else {
-				buf.SetString(middle, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				if currX < self.Inner.Max.X {
+					buf.SetString(middle, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+				}
 			}
 			currX++
 		}
