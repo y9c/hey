@@ -129,7 +129,6 @@ func NewTsvData(filename string) (*TsvData, error) {
 		Scanner:    scanner,
 	}
 
-	// Load headers immediately
 	if scanner.Scan() {
 		data.Headers = strings.Split(scanner.Text(), "\t")
 		data.ColWidths = make([]int, len(data.Headers))
@@ -137,12 +136,11 @@ func NewTsvData(filename string) (*TsvData, error) {
 		for i := range data.IsNumCol {
 			data.IsNumCol[i] = true
 		}
-		for i, h := range data.Headers {
-			w := runewidth.StringWidth(h) + runewidth.StringWidth(toSuperscript(i+1))
-			if w > 40 {
-				w = 40
-			}
-			data.ColWidths[i] = w + 2 // Initial padding
+		for i := range data.Headers {
+			// Start with a small width, it will grow based on data content.
+			// Minimum width to fit at least a few characters and the superscript.
+			sw := runewidth.StringWidth(toSuperscript(i+1))
+			data.ColWidths[i] = sw + 4 
 		}
 	} else {
 		data.Close()
@@ -221,6 +219,63 @@ func NewTsvPager(data *TsvData) *TsvPager {
 	return p
 }
 
+// wrapHeader splits a header into multiple lines to fit a given width.
+func wrapHeader(h string, w int) []string {
+	if w <= 0 {
+		return []string{h}
+	}
+	// Try splitting on common delimiters first for cleaner wrapping
+	delimiters := []string{"_", " ", "-", "."}
+	var words []string
+	
+	tempH := h
+	for {
+		found := false
+		firstIdx := len(tempH)
+		firstDelim := ""
+		for _, d := range delimiters {
+			idx := strings.Index(tempH, d)
+			if idx != -1 && idx < firstIdx {
+				firstIdx = idx
+				firstDelim = d
+				found = true
+			}
+		}
+		if !found {
+			words = append(words, tempH)
+			break
+		}
+		words = append(words, tempH[:firstIdx+len(firstDelim)])
+		tempH = tempH[firstIdx+len(firstDelim):]
+		if tempH == "" {
+			break
+		}
+	}
+
+	var lines []string
+	currLine := ""
+	for _, word := range words {
+		if runewidth.StringWidth(currLine+word) <= w {
+			currLine += word
+		} else {
+			if currLine != "" {
+				lines = append(lines, currLine)
+			}
+			// If a single "word" is longer than width, force break it
+			for runewidth.StringWidth(word) > w {
+				part := runewidth.Truncate(word, w, "")
+				lines = append(lines, part)
+				word = word[len(part):]
+			}
+			currLine = word
+		}
+	}
+	if currLine != "" {
+		lines = append(lines, currLine)
+	}
+	return lines
+}
+
 func (self *TsvPager) Draw(buf *ui.Buffer) {
 	self.Block.Draw(buf)
 	self.Data.RLock()
@@ -275,49 +330,56 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 		}
 	}
 
-	drawRow := func(y int, fields []string, widths []int, startCol int, isHeader bool) {
+	y := self.Inner.Min.Y
+	// Calculate header lines
+	headerLines := make([][]string, len(self.Data.Headers))
+	maxHeaderHeight := 1
+	for i := self.ColOffset; i < len(self.Data.Headers); i++ {
+		w := self.Data.ColWidths[i] - 1 // Account for padding
+		lines := wrapHeader(self.Data.Headers[i], w)
+		headerLines[i] = lines
+		if len(lines) > maxHeaderHeight {
+			maxHeaderHeight = len(lines)
+		}
+	}
+
+	// Top border
+	drawLine(y, "┏", "┳", "┓", "━", self.Data.ColWidths, self.ColOffset)
+	y++
+
+	// Render multi-line header
+	for hLine := 0; hLine < maxHeaderHeight && y < self.Inner.Max.Y; hLine++ {
 		currX := self.Inner.Min.X
 		buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
 		currX++
 
-		for i := startCol; i < len(fields); i++ {
-			w := widths[i]
+		for i := self.ColOffset; i < len(self.Data.Headers); i++ {
+			w := self.Data.ColWidths[i]
 			if currX+w >= self.Inner.Max.X {
 				buf.SetString(">", ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
 				break
 			}
 
-			val := fields[i]
-			style := ui.NewStyle(ui.ColorWhite)
-
-			if isHeader {
-				val = val + toSuperscript(i+1)
-				style = ui.NewStyle(ui.ColorCyan, ui.ColorClear, ui.ModifierBold)
-				buf.SetString(truncate(val, w), style, image.Pt(currX, y))
-			} else {
-				if self.Data.IsNumCol[i] {
-					if isNumeric(val) {
-						val = formatCommas(val)
-						style = ui.NewStyle(ui.ColorGreen)
-					}
-					buf.SetString(alignRight(val, w), style, image.Pt(currX, y))
-				} else {
-					buf.SetString(truncate(val, w), style, image.Pt(currX, y))
+			style := ui.NewStyle(ui.ColorCyan, ui.ColorClear, ui.ModifierBold)
+			val := ""
+			if hLine < len(headerLines[i]) {
+				val = headerLines[i][hLine]
+			}
+			
+			// Add superscript to the first line of the header
+			if hLine == 0 {
+				ss := toSuperscript(i+1)
+				// Try to append it if space allows, otherwise it might be clipped
+				if runewidth.StringWidth(val)+runewidth.StringWidth(ss) <= w-1 {
+					val += ss
 				}
 			}
 
+			buf.SetString(truncate(val, w), style, image.Pt(currX, y))
 			currX += w
 			buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
 			currX++
 		}
-	}
-
-	y := self.Inner.Min.Y
-	drawLine(y, "┏", "┳", "┓", "━", self.Data.ColWidths, self.ColOffset)
-	y++
-
-	if y < self.Inner.Max.Y {
-		drawRow(y, self.Data.Headers, self.Data.ColWidths, self.ColOffset, true)
 		y++
 	}
 
@@ -328,7 +390,35 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 
 	lastIdx := -1
 	for i := self.RowOffset; i < len(self.Data.Rows) && y < self.Inner.Max.Y-1; i++ {
-		drawRow(y, self.Data.Rows[i], self.Data.ColWidths, self.ColOffset, false)
+		currX := self.Inner.Min.X
+		buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+		currX++
+
+		for colIdx := self.ColOffset; colIdx < len(self.Data.Rows[i]); colIdx++ {
+			w := self.Data.ColWidths[colIdx]
+			if currX+w >= self.Inner.Max.X {
+				buf.SetString(">", ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+				break
+			}
+
+			val := self.Data.Rows[i][colIdx]
+			style := ui.NewStyle(ui.ColorWhite)
+
+			if self.Data.IsNumCol[colIdx] {
+				if isNumeric(val) {
+					val = formatCommas(val)
+					style = ui.NewStyle(ui.ColorGreen)
+				}
+				buf.SetString(alignRight(val, w), style, image.Pt(currX, y))
+			} else {
+				buf.SetString(truncate(val, w), style, image.Pt(currX, y))
+			}
+
+			currX += w
+			buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+			currX++
+		}
+		
 		lastIdx = i
 		y++
 		if y < self.Inner.Max.Y-1 {
@@ -364,7 +454,7 @@ func runTSVPager(filename string) {
 	}
 	defer ui.Close()
 
-	data.LoadMore(100) // Initial load
+	data.LoadMore(100)
 
 	pager := NewTsvPager(data)
 	termWidth, termHeight := ui.TerminalDimensions()
@@ -432,7 +522,6 @@ func runTSVPager(filename string) {
 				pager.RowOffset = 0
 				ui.Render(pager)
 			case "<End>":
-				// For <End>, we have to load everything to know where the end is
 				for !data.FullyLoaded {
 					data.LoadMore(1000)
 				}
