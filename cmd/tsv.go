@@ -122,6 +122,11 @@ func NewTsvData(filename string) (*TsvData, error) {
 	}
 
 	scanner := bufio.NewScanner(reader)
+	// Increase buffer size for long lines (e.g., in genomics TSVs)
+	const maxCapacity = 10 * 1024 * 1024 // 10MB
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
+
 	data := &TsvData{
 		Filename:   filename,
 		File:       file,
@@ -196,7 +201,10 @@ func (d *TsvData) LoadMore(n int) int {
 		loaded++
 	}
 
-	if loaded < n {
+	if err := d.Scanner.Err(); err != nil {
+		d.FullyLoaded = true
+		d.Close()
+	} else if loaded < n {
 		d.FullyLoaded = true
 		d.Close()
 	}
@@ -454,7 +462,7 @@ func runTSVPager(filename string) {
 	}
 	defer ui.Close()
 
-	data.LoadMore(100)
+	data.LoadMore(200)
 
 	pager := NewTsvPager(data)
 	termWidth, termHeight := ui.TerminalDimensions()
@@ -478,8 +486,8 @@ func runTSVPager(filename string) {
 				data.RLock()
 				numRows := len(data.Rows)
 				data.RUnlock()
-				if pager.RowOffset+1 >= numRows && !data.FullyLoaded {
-					data.LoadMore(100)
+				if pager.RowOffset + (termHeight/2) >= numRows && !data.FullyLoaded {
+					data.LoadMore(200)
 					numRows = len(data.Rows)
 				}
 				if pager.RowOffset < numRows-1 {
@@ -506,8 +514,8 @@ func runTSVPager(filename string) {
 				data.RLock()
 				numRows := len(data.Rows)
 				data.RUnlock()
-				for pager.RowOffset+termHeight/4 >= numRows && !data.FullyLoaded {
-					data.LoadMore(100)
+				for pager.RowOffset + (termHeight/2) >= numRows && !data.FullyLoaded {
+					data.LoadMore(200)
 					numRows = len(data.Rows)
 				}
 				pager.RowOffset += termHeight / 4
@@ -523,7 +531,7 @@ func runTSVPager(filename string) {
 				ui.Render(pager)
 			case "<End>":
 				for !data.FullyLoaded {
-					data.LoadMore(1000)
+					data.LoadMore(2000)
 				}
 				pager.RowOffset = len(data.Rows) - 1
 				if pager.RowOffset < 0 {
