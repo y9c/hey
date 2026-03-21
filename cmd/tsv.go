@@ -17,7 +17,11 @@ import (
 )
 
 var (
-	tsvMaxRows int
+	tsvMaxRows  int
+	tsvNoHeader bool
+	tsvRowNums  bool
+	tsvMaxWidth int
+	tsvSep      string
 )
 
 var tsvCmd = &cobra.Command{
@@ -33,6 +37,10 @@ var tsvCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(tsvCmd)
 	tsvCmd.Flags().IntVarP(&tsvMaxRows, "rows", "r", 1000000, "Maximum total rows to allow")
+	tsvCmd.Flags().BoolVarP(&tsvNoHeader, "no-header", "H", false, "Hide header row")
+	tsvCmd.Flags().BoolVarP(&tsvRowNums, "row-numbers", "n", false, "Show row number column")
+	tsvCmd.Flags().IntVarP(&tsvMaxWidth, "max-width", "W", 40, "Maximum column width")
+	tsvCmd.Flags().StringVarP(&tsvSep, "sep", "s", "\t", "Column separator (default: tab)")
 }
 
 func toSuperscript(num int) string {
@@ -122,8 +130,7 @@ func NewTsvData(filename string) (*TsvData, error) {
 	}
 
 	scanner := bufio.NewScanner(reader)
-	// Increase buffer size for long lines (e.g., in genomics TSVs)
-	const maxCapacity = 10 * 1024 * 1024 // 10MB
+	const maxCapacity = 10 * 1024 * 1024
 	buf := make([]byte, 64*1024)
 	scanner.Buffer(buf, maxCapacity)
 
@@ -135,17 +142,15 @@ func NewTsvData(filename string) (*TsvData, error) {
 	}
 
 	if scanner.Scan() {
-		data.Headers = strings.Split(scanner.Text(), "\t")
+		data.Headers = strings.Split(scanner.Text(), tsvSep)
 		data.ColWidths = make([]int, len(data.Headers))
 		data.IsNumCol = make([]bool, len(data.Headers))
 		for i := range data.IsNumCol {
 			data.IsNumCol[i] = true
 		}
 		for i := range data.Headers {
-			// Start with a small width, it will grow based on data content.
-			// Minimum width to fit at least a few characters and the superscript.
-			sw := runewidth.StringWidth(toSuperscript(i+1))
-			data.ColWidths[i] = sw + 4 
+			sw := runewidth.StringWidth(toSuperscript(i + 1))
+			data.ColWidths[i] = sw + 4
 		}
 	} else {
 		data.Close()
@@ -174,7 +179,7 @@ func (d *TsvData) LoadMore(n int) int {
 
 	loaded := 0
 	for loaded < n && d.Scanner.Scan() {
-		fields := strings.Split(d.Scanner.Text(), "\t")
+		fields := strings.Split(d.Scanner.Text(), tsvSep)
 		for len(fields) < len(d.Headers) {
 			fields = append(fields, "")
 		}
@@ -190,8 +195,8 @@ func (d *TsvData) LoadMore(n int) int {
 			if isNumeric(f) {
 				w = runewidth.StringWidth(formatCommas(f))
 			}
-			if w > 40 {
-				w = 40
+			if w > tsvMaxWidth {
+				w = tsvMaxWidth
 			}
 			if w+2 > d.ColWidths[i] {
 				d.ColWidths[i] = w + 2
@@ -213,18 +218,34 @@ func (d *TsvData) LoadMore(n int) int {
 
 type TsvPager struct {
 	ui.Block
-	Data      *TsvData
-	RowOffset int
-	ColOffset int
+	Data        *TsvData
+	RowOffset   int
+	ColOffset   int
+	ShowHeader  bool
+	ShowRowNums bool
 }
 
 func NewTsvPager(data *TsvData) *TsvPager {
 	p := &TsvPager{
-		Block: *ui.NewBlock(),
-		Data:  data,
+		Block:       *ui.NewBlock(),
+		Data:        data,
+		ShowHeader:  !tsvNoHeader,
+		ShowRowNums: tsvRowNums,
 	}
 	p.Border = false
 	return p
+}
+
+// rowNumWidth returns the width needed for the row number column
+func (self *TsvPager) rowNumWidth() int {
+	if !self.ShowRowNums {
+		return 0
+	}
+	maxRow := len(self.Data.Rows)
+	if maxRow < 1 {
+		maxRow = 1
+	}
+	return len(strconv.Itoa(maxRow)) + 2
 }
 
 // wrapHeader splits a header into multiple lines to fit a given width.
@@ -232,10 +253,9 @@ func wrapHeader(h string, w int) []string {
 	if w <= 0 {
 		return []string{h}
 	}
-	// Try splitting on common delimiters first for cleaner wrapping
 	delimiters := []string{"_", " ", "-", "."}
 	var words []string
-	
+
 	tempH := h
 	for {
 		found := false
@@ -269,7 +289,6 @@ func wrapHeader(h string, w int) []string {
 			if currLine != "" {
 				lines = append(lines, currLine)
 			}
-			// If a single "word" is longer than width, force break it
 			for runewidth.StringWidth(word) > w {
 				part := runewidth.Truncate(word, w, "")
 				lines = append(lines, part)
@@ -289,6 +308,9 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 	self.Data.RLock()
 	defer self.Data.RUnlock()
 
+	borderStyle := ui.NewStyle(ui.ColorBlue)
+	ellipsis := ">"
+
 	truncate := func(s string, w int) string {
 		sw := runewidth.StringWidth(s)
 		if sw <= w {
@@ -305,107 +327,155 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 		return strings.Repeat(" ", w-sw-1) + s + " "
 	}
 
-	drawLine := func(y int, left, middle, right, horizontal string, widths []int, startCol int) {
+	drawLine := func(y int, left, middle, right, horizontal string, widths []int, startIdx int) {
 		currX := self.Inner.Min.X
 		if currX >= self.Inner.Max.X {
 			return
 		}
-		buf.SetString(left, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+		buf.SetString(left, borderStyle, image.Pt(currX, y))
 		currX++
-		for i := startCol; i < len(widths); i++ {
+		for i := startIdx; i < len(widths); i++ {
 			w := widths[i]
 			if currX+w >= self.Inner.Max.X {
 				remaining := self.Inner.Max.X - currX - 1
 				if remaining > 0 {
-					buf.SetString(strings.Repeat(horizontal, remaining)+">", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+					buf.SetString(strings.Repeat(horizontal, remaining)+ellipsis, borderStyle, image.Pt(currX, y))
 				} else if remaining == 0 {
-					buf.SetString(">", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+					buf.SetString(ellipsis, borderStyle, image.Pt(currX, y))
 				}
 				return
 			}
-			buf.SetString(strings.Repeat(horizontal, w), ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+			buf.SetString(strings.Repeat(horizontal, w), borderStyle, image.Pt(currX, y))
 			currX += w
 			if i == len(widths)-1 {
 				if currX < self.Inner.Max.X {
-					buf.SetString(right, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+					buf.SetString(right, borderStyle, image.Pt(currX, y))
 				}
 			} else {
 				if currX < self.Inner.Max.X {
-					buf.SetString(middle, ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
+					buf.SetString(middle, borderStyle, image.Pt(currX, y))
 				}
 			}
 			currX++
 		}
+	}
+
+	drawCellBorder := func(y int, currX int) int {
+		if currX < self.Inner.Max.X {
+			buf.SetString("│", borderStyle, image.Pt(currX, y))
+		}
+		return currX + 1
 	}
 
 	y := self.Inner.Min.Y
-	// Calculate header lines
-	headerLines := make([][]string, len(self.Data.Headers))
-	maxHeaderHeight := 1
-	for i := self.ColOffset; i < len(self.Data.Headers); i++ {
-		w := self.Data.ColWidths[i] - 1 // Account for padding
-		lines := wrapHeader(self.Data.Headers[i], w)
-		headerLines[i] = lines
-		if len(lines) > maxHeaderHeight {
-			maxHeaderHeight = len(lines)
-		}
+
+	// Build drawWidths with only visible columns (row num + data columns from ColOffset)
+	drawWidths := make([]int, 0)
+	if self.ShowRowNums {
+		drawWidths = append(drawWidths, self.rowNumWidth())
+	}
+	for i := self.ColOffset; i < len(self.Data.ColWidths); i++ {
+		drawWidths = append(drawWidths, self.Data.ColWidths[i])
 	}
 
-	// Top border
-	drawLine(y, "┏", "┳", "┓", "━", self.Data.ColWidths, self.ColOffset)
+	// Top border with round corners
+	drawLine(y, "╭", "┬", "╮", "─", drawWidths, 0)
 	y++
 
-	// Render multi-line header
-	for hLine := 0; hLine < maxHeaderHeight && y < self.Inner.Max.Y; hLine++ {
-		currX := self.Inner.Min.X
-		buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
-		currX++
-
+	// Header section
+	if self.ShowHeader {
+		headerLines := make([][]string, len(self.Data.Headers))
+		maxHeaderHeight := 1
 		for i := self.ColOffset; i < len(self.Data.Headers); i++ {
-			w := self.Data.ColWidths[i]
-			if currX+w >= self.Inner.Max.X {
-				buf.SetString(">", ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
-				break
+			w := self.Data.ColWidths[i] - 1
+			lines := wrapHeader(self.Data.Headers[i], w)
+			headerLines[i] = lines
+			if len(lines) > maxHeaderHeight {
+				maxHeaderHeight = len(lines)
 			}
+		}
 
-			style := ui.NewStyle(ui.ColorCyan, ui.ColorClear, ui.ModifierBold)
-			val := ""
-			if hLine < len(headerLines[i]) {
-				val = headerLines[i][hLine]
-			}
-			
-			// Add superscript to the first line of the header
-			if hLine == 0 {
-				ss := toSuperscript(i+1)
-				// Try to append it if space allows, otherwise it might be clipped
-				if runewidth.StringWidth(val)+runewidth.StringWidth(ss) <= w-1 {
-					val += ss
+		// Render multi-line header
+		for hLine := 0; hLine < maxHeaderHeight && y < self.Inner.Max.Y; hLine++ {
+			currX := self.Inner.Min.X
+			currX = drawCellBorder(y, currX)
+
+			// Row number header cell
+			if self.ShowRowNums {
+				rw := self.rowNumWidth()
+				if currX+rw >= self.Inner.Max.X {
+					buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+				} else {
+					style := ui.NewStyle(ui.ColorYellow, ui.ColorClear, ui.ModifierBold)
+					val := ""
+					if hLine == 0 {
+						val = "#"
+					}
+					buf.SetString(truncate(val, rw), style, image.Pt(currX, y))
+					currX += rw
+					currX = drawCellBorder(y, currX)
 				}
 			}
 
-			buf.SetString(truncate(val, w), style, image.Pt(currX, y))
-			currX += w
-			buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
-			currX++
+			for i := self.ColOffset; i < len(self.Data.Headers); i++ {
+				w := self.Data.ColWidths[i]
+				if currX+w >= self.Inner.Max.X {
+					buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+					break
+				}
+
+				style := ui.NewStyle(ui.ColorCyan, ui.ColorClear, ui.ModifierBold)
+				val := ""
+				if hLine < len(headerLines[i]) {
+					val = headerLines[i][hLine]
+				}
+
+				if hLine == 0 {
+					ss := toSuperscript(i + 1)
+					if runewidth.StringWidth(val)+runewidth.StringWidth(ss) <= w-1 {
+						val += ss
+					}
+				}
+
+				buf.SetString(truncate(val, w), style, image.Pt(currX, y))
+				currX += w
+				currX = drawCellBorder(y, currX)
+			}
+			y++
 		}
-		y++
+
+		if y < self.Inner.Max.Y {
+			drawLine(y, "├", "┼", "┤", "─", drawWidths, 0)
+			y++
+		}
 	}
 
-	if y < self.Inner.Max.Y {
-		drawLine(y, "┣", "╋", "┫", "━", self.Data.ColWidths, self.ColOffset)
-		y++
-	}
-
+	// Data rows
 	lastIdx := -1
 	for i := self.RowOffset; i < len(self.Data.Rows) && y < self.Inner.Max.Y-1; i++ {
 		currX := self.Inner.Min.X
-		buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
-		currX++
+		currX = drawCellBorder(y, currX)
+
+		// Row number cell
+		if self.ShowRowNums {
+			rw := self.rowNumWidth()
+			if currX+rw >= self.Inner.Max.X {
+				buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+				lastIdx = i
+				y++
+				continue
+			}
+			rowNum := strconv.Itoa(i + 1)
+			style := ui.NewStyle(ui.ColorYellow)
+			buf.SetString(alignRight(rowNum, rw), style, image.Pt(currX, y))
+			currX += rw
+			currX = drawCellBorder(y, currX)
+		}
 
 		for colIdx := self.ColOffset; colIdx < len(self.Data.Rows[i]); colIdx++ {
 			w := self.Data.ColWidths[colIdx]
 			if currX+w >= self.Inner.Max.X {
-				buf.SetString(">", ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+				buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
 				break
 			}
 
@@ -423,27 +493,39 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 			}
 
 			currX += w
-			buf.SetString("┃", ui.NewStyle(ui.ColorWhite), image.Pt(currX, y))
-			currX++
+			currX = drawCellBorder(y, currX)
 		}
-		
+
 		lastIdx = i
 		y++
 		if y < self.Inner.Max.Y-1 {
 			if i < len(self.Data.Rows)-1 {
-				drawLine(y, "┣", "╋", "┫", "━", self.Data.ColWidths, self.ColOffset)
+				drawLine(y, "├", "┼", "┤", "─", drawWidths, 0)
 				y++
 			}
 		}
 	}
 
 	if lastIdx == len(self.Data.Rows)-1 && self.Data.FullyLoaded && y < self.Inner.Max.Y-1 {
-		drawLine(y, "┗", "┻", "┛", "━", self.Data.ColWidths, self.ColOffset)
+		drawLine(y, "╰", "┴", "╯", "─", drawWidths, 0)
 	}
 
-	status := fmt.Sprintf(" [Row %d/%d, Col %d/%d] ('q' to quit) ", self.RowOffset+1, len(self.Data.Rows), self.ColOffset+1, len(self.Data.Headers))
+	// Status bar
+	headerState := "ON"
+	if !self.ShowHeader {
+		headerState = "OFF"
+	}
+	rowNumState := "OFF"
+	if self.ShowRowNums {
+		rowNumState = "ON"
+	}
+	status := fmt.Sprintf(" [Row %d/%d, Col %d/%d] [H]Header:%s [N]RowNum:%s [q]Quit ",
+		self.RowOffset+1, len(self.Data.Rows), self.ColOffset+1, len(self.Data.Headers),
+		headerState, rowNumState)
 	if !self.Data.FullyLoaded {
-		status = fmt.Sprintf(" [Row %d/%d+, Col %d/%d] (Loading...) ", self.RowOffset+1, len(self.Data.Rows), self.ColOffset+1, len(self.Data.Headers))
+		status = fmt.Sprintf(" [Row %d/%d+, Col %d/%d] [H]Header:%s [N]RowNum:%s (Loading...) ",
+			self.RowOffset+1, len(self.Data.Rows), self.ColOffset+1, len(self.Data.Headers),
+			headerState, rowNumState)
 	}
 	buf.SetString(status, ui.NewStyle(ui.ColorBlack, ui.ColorWhite), image.Pt(self.Inner.Min.X, self.Max.Y-1))
 }
@@ -477,6 +559,12 @@ func runTSVPager(filename string) {
 			switch e.ID {
 			case "q", "<C-c>":
 				return
+			case "H":
+				pager.ShowHeader = !pager.ShowHeader
+				ui.Render(pager)
+			case "N":
+				pager.ShowRowNums = !pager.ShowRowNums
+				ui.Render(pager)
 			case "<Up>", "k":
 				if pager.RowOffset > 0 {
 					pager.RowOffset--
@@ -486,7 +574,7 @@ func runTSVPager(filename string) {
 				data.RLock()
 				numRows := len(data.Rows)
 				data.RUnlock()
-				if pager.RowOffset + (termHeight/2) >= numRows && !data.FullyLoaded {
+				if pager.RowOffset+(termHeight/2) >= numRows && !data.FullyLoaded {
 					data.LoadMore(200)
 					numRows = len(data.Rows)
 				}
@@ -514,7 +602,7 @@ func runTSVPager(filename string) {
 				data.RLock()
 				numRows := len(data.Rows)
 				data.RUnlock()
-				for pager.RowOffset + (termHeight/2) >= numRows && !data.FullyLoaded {
+				for pager.RowOffset+(termHeight/2) >= numRows && !data.FullyLoaded {
 					data.LoadMore(200)
 					numRows = len(data.Rows)
 				}
