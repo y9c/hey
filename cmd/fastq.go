@@ -176,7 +176,7 @@ func renderFASTQ(filename string) {
 		case 3: // "+" (skip)
 		case 0: // Quality
 			// Compute per-read quality stats
-			currQual = &readQualStats{min: math.MaxInt32}
+			currQual := &readQualStats{min: math.MaxInt32}
 			for i := 0; i < len(line); i++ {
 				score := int(line[i]) - 33
 				if score < 0 {

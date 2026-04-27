@@ -65,20 +65,19 @@ Long Intron Formatting (>20 Ns):
   Ref:   <darkgrey>NNNNN..[count]nt...NNNNN</darkgrey>
   Query: <darkgrey>..... ..[count]nt... .....</darkgrey>
   Marker:        [spaces matching width]`,
-	Run: func(cmd *cobra.Command, args []string) {
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(knownMutationMark) > 1 {
-			fmt.Fprintln(os.Stderr, "Error: -l mark must be a single character.")
-			os.Exit(1)
+			return fmt.Errorf("-l mark must be a single character")
 		}
 		if knownMutation != "" && (len(knownMutation) != 3 || knownMutation[1] != '>') {
-			fmt.Fprintln(os.Stderr, "Error: -m mutation format must be REF>ALT (e.g., C>T).")
-			os.Exit(1)
+			return fmt.Errorf("-m mutation format must be REF>ALT, for example C>T")
 		}
 		if filterForward && filterReverse {
-			fmt.Fprintln(os.Stderr, "Error: Cannot use -f and -r flags simultaneously.")
-			os.Exit(1)
+			return fmt.Errorf("cannot use -f and -r flags simultaneously")
 		}
 		processSAMStdin()
+		return nil
 	},
 }
 

@@ -9,8 +9,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "hey",
-	Short: "HeY may short for Yc @ Helab",
+	Use:           "hey",
+	Short:         "HeY may short for Yc @ Helab",
+	SilenceErrors: true,
 	Long: `Some useful/useless commands
   from Yc @ Helab
   ---------------`,

@@ -62,11 +62,12 @@ treating 'N' as a wildcard. Displays results in a table with automatically merge
 cyclically colored R1 file names, and highlighting for non-uniform/error barcodes.
 Use --key (-k) to specify the YAML top-level key and --num-records (-n) to change the number of records scanned.`,
 	Args: cobra.ExactArgs(1), // Requires exactly one argument: the YAML file path
-	Run: func(cmd *cobra.Command, args []string) {
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Compile regex once
 		barcodeRegex = regexp.MustCompile(`^[ACGTN+]+$`)
 		// The yamlTopKey and numRecordsToCheck variables will be populated by cobra
-		runCheckBarcode(args[0], yamlTopKey, numRecordsToCheck)
+		return runCheckBarcode(args[0], yamlTopKey, numRecordsToCheck)
 	},
 }
 
@@ -78,23 +79,21 @@ func init() {
 }
 
 // --- Core Logic ---
-func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) {
+func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) error {
 	// 1. Read and Parse YAML into generic structure
 	yamlDataAny, err := readYamlConfigGeneric(yamlFilePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading YAML: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("reading YAML: %w", err)
 	}
 
 	// 2. Gather R1 File Paths while trying to preserve original order
 	filesToProcess, err := gatherFilePathsGeneric(yamlDataAny, yamlFilePath, topKey)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error processing YAML data: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("processing YAML data: %w", err)
 	}
 	if len(filesToProcess) == 0 {
 		color.Yellow("No valid R1 files found to process under key '%s' in the YAML file.", topKey)
-		return
+		return nil
 	}
 
 	// 3. Process Files Concurrently (results potentially out of order)
@@ -114,6 +113,7 @@ func runCheckBarcode(yamlFilePath string, topKey string, recordsToCheck int) {
 	} else {
 		color.Yellow("No results to display.")
 	}
+	return nil
 }
 
 // --- YAML Parsing and File Path Gathering (Using 'any') ---

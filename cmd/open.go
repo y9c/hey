@@ -26,26 +26,30 @@ import (
 var (
 	inputAddress string
 	inputPort    string
+	openNoQR     bool
 
 	openCmd = &cobra.Command{
-		Use:   "open [path]",
-		Short: "Open file or directory in a browser with a beautiful, secure server UI",
-		Long:  `Serves a file or directory with a modern web interface protected by a unique access token.`,
+		Use:          "open [path]",
+		Short:        "Open file or directory in a browser with a beautiful, secure server UI",
+		Long:         `Serves a file or directory with a modern web interface protected by a unique access token.`,
+		SilenceUsage: true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("requires a file or directory path")
 			}
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			urlBase := fmt.Sprintf("%s:%s", inputAddress, inputPort)
-			fileDir, fileBase := parsePath(args[0])
+			fileDir, fileBase, err := parsePath(args[0])
+			if err != nil {
+				return err
+			}
 			token, err := generateRandomToken(16)
 			if err != nil {
-				log.Fatalf("FATAL: Could not generate security token: %v", err)
+				return fmt.Errorf("could not generate security token: %w", err)
 			}
-			qrCode(urlBase, fileBase, token)
-			serveFiles(urlBase, fileDir, token)
+			return serveFiles(urlBase, fileDir, fileBase, token)
 		},
 	}
 )
@@ -154,6 +158,80 @@ const htmlTemplate = `
 </html>
 `
 
+const forbiddenTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Required</title>
+    <style>
+        :root { color-scheme: light dark; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: radial-gradient(circle at top left, #dbeafe, transparent 32rem), linear-gradient(135deg, #f8fafc, #e2e8f0);
+            color: #0f172a;
+        }
+        .card {
+            width: min(92vw, 520px);
+            box-sizing: border-box;
+            padding: 34px;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
+            backdrop-filter: blur(14px);
+        }
+        .eyebrow {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #fee2e2;
+            color: #991b1b;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        h1 { margin: 18px 0 10px; font-size: clamp(28px, 6vw, 44px); line-height: 1; }
+        p { margin: 0; color: #475569; font-size: 16px; line-height: 1.6; }
+        .hint {
+            margin-top: 22px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 14px;
+        }
+        code {
+            padding: 2px 6px;
+            border-radius: 7px;
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: radial-gradient(circle at top left, #1e3a8a, transparent 32rem), linear-gradient(135deg, #020617, #111827); color: #e5e7eb; }
+            .card { background: rgba(15, 23, 42, 0.82); border-color: rgba(226, 232, 240, 0.12); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4); }
+            p { color: #cbd5e1; }
+            .hint { background: rgba(30, 41, 59, 0.9); color: #cbd5e1; }
+            code { background: #334155; color: #f8fafc; }
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <span class="eyebrow">403 Access Required</span>
+        <h1>Secure link needed</h1>
+        <p>This file server is protected by a temporary access token. Open the exact link printed by <code>hey open</code> or scan the QR code again.</p>
+        <div class="hint">The token is only accepted as a <code>?token=...</code> URL parameter. For security, this page does not reveal or guess it.</div>
+    </main>
+</body>
+</html>
+`
+
 func init() {
 	rootCmd.AddCommand(openCmd)
 	allAddress := getIPs()
@@ -176,6 +254,7 @@ func init() {
 		defaultAddress = "127.0.0.1"
 	}
 	openCmd.Flags().StringVarP(&inputAddress, "address", "a", defaultAddress, "set ip address")
+	openCmd.Flags().BoolVar(&openNoQR, "no-qr", false, "Print only the secure link, without the QR code")
 
 	// --- Port selection logic based on hostname ---
 	hostname, err := os.Hostname()
@@ -201,22 +280,32 @@ func init() {
 	openCmd.Flags().StringVarP(&inputPort, "port", "p", defaultPort, "set port number")
 }
 
-func qrCode(urlBase, fileBase, token string) {
+func openURL(urlBase, fileBase, token string) string {
 	path := "/"
 	if fileBase != "" {
 		path = "/" + fileBase
 	}
-	url := fmt.Sprintf("http://%s%s?token=%s", urlBase, path, token)
+	return fmt.Sprintf("http://%s%s?token=%s", urlBase, path, token)
+}
 
-	fmt.Printf("\nScan the QR code to open file in mobile phone, or open this secure link in browser.\n")
-	q, err := qrcode.New(url, qrcode.Low)
-	if err != nil {
-		fmt.Printf("could not generate QR code: %v\n", err)
-		return
-	}
-	fmt.Print(q.ToSmallString(false))
+func printOpenLink(url string) {
+	fmt.Println()
+	fmt.Println("File server ready")
+	fmt.Println("Open this secure link in your browser:")
 	sepLine := strings.Repeat("━", len(url)+2)
 	fmt.Printf("\n┏%s┓\n┃ %s ┃\n┗%s┛\n", sepLine, url, sepLine)
+}
+
+func qrCode(url string) error {
+	q, err := qrcode.New(url, qrcode.Medium)
+	if err != nil {
+		return fmt.Errorf("could not generate QR code: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Scan with your phone:")
+	fmt.Print(q.ToSmallString(false))
+	return nil
 }
 
 func getIPs() (ips []string) {
@@ -243,32 +332,30 @@ func getGateway() string {
 	return gw.String()
 }
 
-func parsePath(path string) (string, string) {
-	var fileBase, fileDir string
+func parsePath(path string) (string, string, error) {
 	fi, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("file or directory (%s) does not exist!\n", path)
+			return "", "", fmt.Errorf("file or directory %q does not exist", path)
 		}
-		os.Exit(1)
+		return "", "", fmt.Errorf("cannot access %q: %w", path, err)
 	}
 	switch mode := fi.Mode(); {
 	case mode.IsDir():
-		fileBase = ""
-		if dir, err := filepath.Abs(path); err != nil {
-			panic(err)
-		} else {
-			fileDir = dir
+		fileDir, err := filepath.Abs(path)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot resolve directory %q: %w", path, err)
 		}
+		return fileDir, "", nil
 	case mode.IsRegular():
-		fileBase = filepath.Base(path)
-		if dir, err := filepath.Abs(filepath.Dir(path)); err != nil {
-			panic(err)
-		} else {
-			fileDir = dir
+		fileDir, err := filepath.Abs(filepath.Dir(path))
+		if err != nil {
+			return "", "", fmt.Errorf("cannot resolve file directory %q: %w", path, err)
 		}
+		return fileDir, filepath.Base(path), nil
+	default:
+		return "", "", fmt.Errorf("%q is not a regular file or directory", path)
 	}
-	return fileDir, fileBase
 }
 
 func generateRandomToken(length int) (string, error) {
@@ -301,12 +388,19 @@ func tokenAuthMiddleware(next http.Handler, token string) http.Handler {
 		if queryToken == token {
 			next.ServeHTTP(w, r)
 		} else {
-			http.Error(w, "Forbidden: Invalid or missing token.", http.StatusForbidden)
+			writeForbiddenPage(w)
 		}
 	})
 }
 
-func serveFiles(urlBase, fileDir, token string) {
+func writeForbiddenPage(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = io.WriteString(w, forbiddenTemplate)
+}
+
+func serveFiles(urlBase, fileDir, fileBase, token string) error {
 	appMux := http.NewServeMux()
 	appMux.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -323,6 +417,7 @@ func serveFiles(urlBase, fileDir, token string) {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
+		absDir = filepath.Clean(absDir)
 		for {
 			part, err := reader.NextPart()
 			if err == io.EOF {
@@ -337,7 +432,7 @@ func serveFiles(urlBase, fileDir, token string) {
 			}
 			dstPath := filepath.Join(fileDir, part.FileName())
 			absDst, absErr2 := filepath.Abs(dstPath)
-			if absErr2 != nil || !strings.HasPrefix(absDst, absDir) {
+			if absErr2 != nil || !isPathWithin(absDst, absDir) {
 				http.Error(w, "Forbidden: path traversal not allowed", http.StatusForbidden)
 				return
 			}
@@ -369,7 +464,7 @@ func serveFiles(urlBase, fileDir, token string) {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		if !strings.HasPrefix(absFullPath, absFileDir) {
+		if !isPathWithin(absFullPath, absFileDir) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
@@ -427,15 +522,44 @@ func serveFiles(urlBase, fileDir, token string) {
 
 	finalHandler := panicMiddleware(tokenAuthMiddleware(appMux, token))
 
-	// log.Printf("Starting server. Access it at http://%s/?token=%s (Serving %s)", urlBase, token, fileDir)
+	listener, err := net.Listen("tcp", urlBase)
+	if err != nil {
+		return fmt.Errorf("cannot start file server on %s: %w\n\nNo QR code was printed because the server did not start.\nTry a different port:\n  hey open -a %s -p 0 %s", urlBase, err, inputAddress, fileDir)
+	}
+	defer listener.Close()
+
+	actualURLBase := urlBase
+	if _, port, err := net.SplitHostPort(listener.Addr().String()); err == nil && inputPort == "0" {
+		actualURLBase = net.JoinHostPort(inputAddress, port)
+	}
+
+	url := openURL(actualURLBase, fileBase, token)
+	printOpenLink(url)
+	if !openNoQR {
+		if err := qrCode(url); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("\nServing: %s\nAddress: http://%s/\nStop:    Ctrl+C\n", fileDir, actualURLBase)
+
 	server := &http.Server{
-		Addr:         urlBase,
 		Handler:      finalHandler,
 		ReadTimeout:  10 * time.Minute,
 		WriteTimeout: 10 * time.Minute,
 		IdleTimeout:  120 * time.Second,
 	}
-	if err := server.ListenAndServe(); err != nil {
-		panic(err)
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("file server stopped unexpectedly: %w", err)
 	}
+	return nil
+}
+
+func isPathWithin(path, root string) bool {
+	cleanPath := filepath.Clean(path)
+	cleanRoot := filepath.Clean(root)
+	if cleanPath == cleanRoot {
+		return true
+	}
+	rel, err := filepath.Rel(cleanRoot, cleanPath)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }

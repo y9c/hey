@@ -15,6 +15,10 @@ warn() {
     printf "${YELLOW}%s${NC}\n" "$1"
 }
 
+fail() {
+    printf "${RED}%s${NC}\n" "$1" >&2
+}
+
 # Exit on error
 set -e
 
@@ -79,6 +83,23 @@ info "Downloading from $URL"
 TMP_DIR=$(mktemp -d)
 curl -L "$URL" -o "$TMP_DIR/hey.tar.gz"
 tar -xzf "$TMP_DIR/hey.tar.gz" -C "$TMP_DIR"
+
+if ! "$TMP_DIR/hey" --help >/dev/null 2>"$TMP_DIR/hey.err"; then
+    fail "Downloaded 'hey' binary could not run on this machine."
+    if grep 'GLIBC_.*not found' "$TMP_DIR/hey.err" >/dev/null 2>&1; then
+        fail "Reason: this binary requires a newer GLIBC than your system provides."
+        warn "This commonly happens on older Linux distributions such as CentOS 7."
+        warn "Install from a newer release after this fix, or build locally with Go:"
+        printf "  git clone https://github.com/y9c/hey.git\n"
+        printf "  cd hey && CGO_ENABLED=0 go build -tags netgo,osusergo -ldflags '-s -w' -o hey .\n"
+    else
+        fail "Runtime error:"
+        sed 's/^/  /' "$TMP_DIR/hey.err" >&2
+    fi
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
+
 mv "$TMP_DIR/hey" "$INSTALL_DIR/hey"
 rm -rf "$TMP_DIR"
 

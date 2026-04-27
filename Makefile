@@ -9,11 +9,9 @@ else
     detected_OS := $(shell uname)
 endif
 
-ifeq ($(detected_OS),Linux)        # Linux
-	BUILD_FLAGS='-s -w -linkmode external -extldflags "-fno-PIC -static"' 
-else
-	BUILD_FLAGS='-s -w'
-endif
+BUILD_FLAGS='-s -w'
+GO_BUILD_ENV=CGO_ENABLED=0
+GO_BUILD_TAGS=netgo,osusergo
 
 all: build-go-binary
 release: build-release-binary
@@ -21,14 +19,14 @@ release: build-release-binary
 .PHONY: linux
 linux:
 	@echo "building binary for linux 64bit..."
-	@GOOS=linux GOARCH=amd64 go build -ldflags $(BUILD_FLAGS) -o ./hey && upx ./hey
+	@$(GO_BUILD_ENV) GOOS=linux GOARCH=amd64 go build -tags $(GO_BUILD_TAGS) -ldflags $(BUILD_FLAGS) -o ./hey && upx ./hey
 
 .PHONY: build-go-binary
 build-go-binary:
 	@echo "building binary..."
-	@go build -ldflags $(BUILD_FLAGS) -o ./hey
+	@$(GO_BUILD_ENV) go build -tags $(GO_BUILD_TAGS) -ldflags $(BUILD_FLAGS) -o ./hey
 
 .PHONY: build-release-binary
 build-release-binary:
 	@echo "building release binary..."
-	@go build -ldflags $(BUILD_FLAGS) -o ./hey && upx --ultra-brute --force-macos ./hey
+	@$(GO_BUILD_ENV) go build -tags $(GO_BUILD_TAGS) -ldflags $(BUILD_FLAGS) -o ./hey && upx --ultra-brute --force-macos ./hey
