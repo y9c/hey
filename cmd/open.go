@@ -198,7 +198,7 @@ const forbiddenTemplate = `
         }
         h1 { margin: 18px 0 10px; font-size: clamp(28px, 6vw, 44px); line-height: 1; }
         p { margin: 0; color: #475569; font-size: 16px; line-height: 1.6; }
-        .hint {
+        .hint, .details {
             margin-top: 22px;
             padding: 14px 16px;
             border-radius: 16px;
@@ -206,6 +206,7 @@ const forbiddenTemplate = `
             color: #334155;
             font-size: 14px;
         }
+        .details { margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; }
         code {
             padding: 2px 6px;
             border-radius: 7px;
@@ -224,13 +225,20 @@ const forbiddenTemplate = `
 <body>
     <main class="card">
         <span class="eyebrow">403 Access Required</span>
-        <h1>Secure link needed</h1>
-        <p>This file server is protected by a temporary access token. Open the exact link printed by <code>hey open</code> or scan the QR code again.</p>
-        <div class="hint">The token is only accepted as a <code>?token=...</code> URL parameter. For security, this page does not reveal or guess it.</div>
+        <h1>{{.Title}}</h1>
+        <p>{{.Message}}</p>
+        <div class="hint">Open the exact link printed by <code>hey open</code>, or restart <code>hey open</code> and update your Cloudflare tunnel to the same local port.</div>
+        <div class="details">{{.Detail}}</div>
     </main>
 </body>
 </html>
 `
+
+type forbiddenPageData struct {
+	Title   string
+	Message string
+	Detail  string
+}
 
 func init() {
 	rootCmd.AddCommand(openCmd)
@@ -385,19 +393,50 @@ func tokenAuthMiddleware(next http.Handler, token string) http.Handler {
 			return
 		}
 		queryToken := r.URL.Query().Get("token")
-		if queryToken == token {
+		cookieToken := ""
+		if cookie, err := r.Cookie("hey_token"); err == nil {
+			cookieToken = cookie.Value
+		}
+
+		if queryToken == token || cookieToken == token {
+			if queryToken == token {
+				http.SetCookie(w, &http.Cookie{
+					Name:     "hey_token",
+					Value:    token,
+					Path:     "/",
+					MaxAge:   12 * 60 * 60,
+					HttpOnly: true,
+					SameSite: http.SameSiteLaxMode,
+				})
+			}
 			next.ServeHTTP(w, r)
 		} else {
-			writeForbiddenPage(w)
+			writeForbiddenPage(w, queryToken != "", cookieToken != "")
 		}
 	})
 }
 
-func writeForbiddenPage(w http.ResponseWriter) {
+func writeForbiddenPage(w http.ResponseWriter, hasQueryToken, hasCookieToken bool) {
+	data := forbiddenPageData{
+		Title:   "Secure link needed",
+		Message: "This file server is protected by a temporary access token.",
+		Detail:  "Token status: missing from URL and browser cookie.",
+	}
+	if hasQueryToken || hasCookieToken {
+		data.Title = "Token did not match"
+		data.Message = "The request reached hey, but the provided token does not match this running server. This usually means the tunnel is forwarding to a different or restarted hey process."
+		data.Detail = "Token status: present but invalid for this server."
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusForbidden)
-	_, _ = io.WriteString(w, forbiddenTemplate)
+	tmpl, err := template.New("forbidden").Parse(forbiddenTemplate)
+	if err != nil {
+		_, _ = io.WriteString(w, "Forbidden")
+		return
+	}
+	_ = tmpl.Execute(w, data)
 }
 
 func serveFiles(urlBase, fileDir, fileBase, token string) error {
