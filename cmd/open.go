@@ -214,7 +214,7 @@ func qrCode(urlBase, fileBase, token string) {
 		fmt.Printf("could not generate QR code: %v\n", err)
 		return
 	}
-	fmt.Printf(q.ToSmallString(false))
+	fmt.Print(q.ToSmallString(false))
 	sepLine := strings.Repeat("━", len(url)+2)
 	fmt.Printf("\n┏%s┓\n┃ %s ┃\n┗%s┛\n", sepLine, url, sepLine)
 }
@@ -318,6 +318,11 @@ func serveFiles(urlBase, fileDir, token string) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		absDir, absErr := filepath.Abs(fileDir)
+		if absErr != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 		for {
 			part, err := reader.NextPart()
 			if err == io.EOF {
@@ -330,26 +335,40 @@ func serveFiles(urlBase, fileDir, token string) {
 			if part.FileName() == "" {
 				continue
 			}
-			dst, err := os.Create(filepath.Join(fileDir, part.FileName()))
+			dstPath := filepath.Join(fileDir, part.FileName())
+			absDst, absErr2 := filepath.Abs(dstPath)
+			if absErr2 != nil || !strings.HasPrefix(absDst, absDir) {
+				http.Error(w, "Forbidden: path traversal not allowed", http.StatusForbidden)
+				return
+			}
+			dst, err := os.Create(dstPath)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			if _, err := io.Copy(dst, part); err != nil {
-				dst.Close()
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			_, copyErr := io.Copy(dst, part)
+			closeErr := dst.Close()
+			if copyErr != nil {
+				http.Error(w, copyErr.Error(), http.StatusInternalServerError)
 				return
 			}
-			dst.Close()
-			log.Printf("Uploaded file: %s", part.FileName())
+			if closeErr != nil {
+				http.Error(w, closeErr.Error(), http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Uploaded file: %q", part.FileName())
 		}
 		w.WriteHeader(http.StatusOK)
 	})
 
 	appMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fullPath := filepath.Join(fileDir, r.URL.Path)
-		absFileDir, _ := filepath.Abs(fileDir)
-		absFullPath, _ := filepath.Abs(fullPath)
+		absFileDir, absErr := filepath.Abs(fileDir)
+		absFullPath, absPathErr := filepath.Abs(fullPath)
+		if absErr != nil || absPathErr != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 		if !strings.HasPrefix(absFullPath, absFileDir) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -409,7 +428,14 @@ func serveFiles(urlBase, fileDir, token string) {
 	finalHandler := panicMiddleware(tokenAuthMiddleware(appMux, token))
 
 	// log.Printf("Starting server. Access it at http://%s/?token=%s (Serving %s)", urlBase, token, fileDir)
-	if err := http.ListenAndServe(urlBase, finalHandler); err != nil {
+	server := &http.Server{
+		Addr:         urlBase,
+		Handler:      finalHandler,
+		ReadTimeout:  10 * time.Minute,
+		WriteTimeout: 10 * time.Minute,
+		IdleTimeout:  120 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil {
 		panic(err)
 	}
 }

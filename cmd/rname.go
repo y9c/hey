@@ -230,81 +230,79 @@ func outputResults(results []RnameOutputData, usePrettyTable bool) {
 }
 
 func extractRname(inputArg string) (string, error) {
-	var reader io.Reader
 	isStdin := inputArg == "-"
 
 	if isStdin {
-		// Check if data is being piped to stdin
 		stat, _ := os.Stdin.Stat()
 		if (stat.Mode() & os.ModeCharDevice) == 0 {
-			reader = os.Stdin
-		} else {
-			return "", fmt.Errorf("asked to read from stdin ('-') but no data was piped")
-		}
-	} else {
-		// Check if the input is an existing file
-		if fileInfo, err := os.Stat(inputArg); err == nil && !fileInfo.IsDir() {
-			file, errOpen := os.Open(inputArg)
-			if errOpen != nil {
-				return "", fmt.Errorf("failed to open file '%s': %w", inputArg, errOpen)
-			}
-			defer file.Close() // Ensure file is closed after this function, not just os.Open scope
-
-			if strings.HasSuffix(strings.ToLower(inputArg), ".gz") {
-				gzipReader, errGzip := gzip.NewReader(file)
-				if errGzip != nil {
-					return "", fmt.Errorf("failed to open gzip file '%s': %w", inputArg, errGzip)
+			scanner := bufio.NewScanner(os.Stdin)
+			if scanner.Scan() {
+				line := strings.TrimPrefix(scanner.Text(), "@")
+				parts := strings.Fields(line)
+				if len(parts) > 0 {
+					return parts[0], nil
 				}
-				// defer gzipReader.Close() // gzipReader is closed when file is closed
-				reader = gzipReader
-			} else {
-				reader = file
+				return "", fmt.Errorf("empty line read from stdin")
 			}
-		} else if os.IsNotExist(err) {
-			// If the file does not exist, treat inputArg as a direct rname string
-			rname := strings.TrimPrefix(inputArg, "@")
-			parts := strings.Fields(rname) // Handle cases like "@rname extra_info"
-			if len(parts) > 0 {
-				return parts[0], nil
+			if err := scanner.Err(); err != nil {
+				return "", fmt.Errorf("error scanning stdin: %w", err)
 			}
-			return "", fmt.Errorf("empty rname string provided: '%s'", inputArg)
-		} else if err != nil { // Other stat error
-			return "", fmt.Errorf("error accessing '%s': %w", inputArg, err)
-		} else if fileInfo.IsDir() { // It's a directory
-			return "", fmt.Errorf("input '%s' is a directory, not a file or rname string", inputArg)
+			return "", fmt.Errorf("no data read from stdin")
 		}
+		return "", fmt.Errorf("asked to read from stdin ('-') but no data was piped")
 	}
 
-	// If reader is set (either from file or stdin)
-	if reader != nil {
-		scanner := bufio.NewScanner(reader)
-		if scanner.Scan() {
-			line := scanner.Text()
-			line = strings.TrimPrefix(line, "@")
-			parts := strings.Fields(line) // Handle cases like "rname extra_info" from file line
-			if len(parts) > 0 {
-				return parts[0], nil
-			}
-			return "", fmt.Errorf("empty line read from input source '%s'", inputArg)
-		}
-		if err := scanner.Err(); err != nil {
-			return "", fmt.Errorf("error scanning input from '%s': %w", inputArg, err)
-		}
-		return "", fmt.Errorf("no data read from input source '%s'", inputArg)
-	}
-
-	// Fallback for direct rname string if not caught earlier (should be rare with current logic)
-	// This primarily handles the case where inputArg was not a file and not stdin
-	if !isStdin {
+	// Check if the input is an existing file
+	fileInfo, err := os.Stat(inputArg)
+	if os.IsNotExist(err) {
+		// File does not exist, treat as direct rname string
 		rname := strings.TrimPrefix(inputArg, "@")
 		parts := strings.Fields(rname)
 		if len(parts) > 0 {
 			return parts[0], nil
 		}
-		return "", fmt.Errorf("invalid or empty rname string provided: '%s'", inputArg)
+		return "", fmt.Errorf("empty rname string provided: '%s'", inputArg)
+	}
+	if err != nil {
+		return "", fmt.Errorf("error accessing '%s': %w", inputArg, err)
+	}
+	if fileInfo.IsDir() {
+		return "", fmt.Errorf("input '%s' is a directory, not a file or rname string", inputArg)
 	}
 
-	return "", fmt.Errorf("unable to determine input type or read data for '%s'", inputArg)
+	file, err := os.Open(inputArg)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file '%s': %w", inputArg, err)
+	}
+
+	var innerReader io.Reader
+	if strings.HasSuffix(strings.ToLower(inputArg), ".gz") {
+		gzipReader, errGzip := gzip.NewReader(file)
+		if errGzip != nil {
+			_ = file.Close()
+			return "", fmt.Errorf("failed to open gzip file '%s': %w", inputArg, errGzip)
+		}
+		defer gzipReader.Close()
+		defer file.Close()
+		innerReader = gzipReader
+	} else {
+		defer file.Close()
+		innerReader = file
+	}
+
+	scanner := bufio.NewScanner(innerReader)
+	if scanner.Scan() {
+		line := strings.TrimPrefix(scanner.Text(), "@")
+		parts := strings.Fields(line)
+		if len(parts) > 0 {
+			return parts[0], nil
+		}
+		return "", fmt.Errorf("empty line read from input source '%s'", inputArg)
+	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error scanning input from '%s': %w", inputArg, err)
+	}
+	return "", fmt.Errorf("no data read from input source '%s'", inputArg)
 }
 
 func printInstrumentType(instrumentID string) string {

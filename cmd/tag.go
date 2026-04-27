@@ -25,7 +25,6 @@ Example:
 
 func init() {
 	getCmd.AddCommand(tagCmd)
-	rootCmd.AddCommand(tagCmd)
 }
 
 func processTag(tags []string) {

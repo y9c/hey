@@ -237,11 +237,11 @@ func NewTsvPager(data *TsvData) *TsvPager {
 }
 
 // rowNumWidth returns the width needed for the row number column
-func (self *TsvPager) rowNumWidth() int {
-	if !self.ShowRowNums {
+func (p *TsvPager) rowNumWidth() int {
+	if !p.ShowRowNums {
 		return 0
 	}
-	maxRow := len(self.Data.Rows)
+	maxRow := len(p.Data.Rows)
 	if maxRow < 1 {
 		maxRow = 1
 	}
@@ -303,10 +303,10 @@ func wrapHeader(h string, w int) []string {
 	return lines
 }
 
-func (self *TsvPager) Draw(buf *ui.Buffer) {
-	self.Block.Draw(buf)
-	self.Data.RLock()
-	defer self.Data.RUnlock()
+func (p *TsvPager) Draw(buf *ui.Buffer) {
+	p.Block.Draw(buf)
+	p.Data.RLock()
+	defer p.Data.RUnlock()
 
 	borderStyle := ui.NewStyle(ui.ColorBlue)
 	ellipsis := ">"
@@ -328,16 +328,16 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 	}
 
 	drawLine := func(y int, left, middle, right, horizontal string, widths []int, startIdx int) {
-		currX := self.Inner.Min.X
-		if currX >= self.Inner.Max.X {
+		currX := p.Inner.Min.X
+		if currX >= p.Inner.Max.X {
 			return
 		}
 		buf.SetString(left, borderStyle, image.Pt(currX, y))
 		currX++
 		for i := startIdx; i < len(widths); i++ {
 			w := widths[i]
-			if currX+w >= self.Inner.Max.X {
-				remaining := self.Inner.Max.X - currX - 1
+			if currX+w >= p.Inner.Max.X {
+				remaining := p.Inner.Max.X - currX - 1
 				if remaining > 0 {
 					buf.SetString(strings.Repeat(horizontal, remaining)+ellipsis, borderStyle, image.Pt(currX, y))
 				} else if remaining == 0 {
@@ -348,11 +348,11 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 			buf.SetString(strings.Repeat(horizontal, w), borderStyle, image.Pt(currX, y))
 			currX += w
 			if i == len(widths)-1 {
-				if currX < self.Inner.Max.X {
+				if currX < p.Inner.Max.X {
 					buf.SetString(right, borderStyle, image.Pt(currX, y))
 				}
 			} else {
-				if currX < self.Inner.Max.X {
+				if currX < p.Inner.Max.X {
 					buf.SetString(middle, borderStyle, image.Pt(currX, y))
 				}
 			}
@@ -361,21 +361,21 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 	}
 
 	drawCellBorder := func(y int, currX int) int {
-		if currX < self.Inner.Max.X {
+		if currX < p.Inner.Max.X {
 			buf.SetString("│", borderStyle, image.Pt(currX, y))
 		}
 		return currX + 1
 	}
 
-	y := self.Inner.Min.Y
+	y := p.Inner.Min.Y
 
 	// Build drawWidths with only visible columns (row num + data columns from ColOffset)
 	drawWidths := make([]int, 0)
-	if self.ShowRowNums {
-		drawWidths = append(drawWidths, self.rowNumWidth())
+	if p.ShowRowNums {
+		drawWidths = append(drawWidths, p.rowNumWidth())
 	}
-	for i := self.ColOffset; i < len(self.Data.ColWidths); i++ {
-		drawWidths = append(drawWidths, self.Data.ColWidths[i])
+	for i := p.ColOffset; i < len(p.Data.ColWidths); i++ {
+		drawWidths = append(drawWidths, p.Data.ColWidths[i])
 	}
 
 	// Top border with round corners
@@ -383,12 +383,12 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 	y++
 
 	// Header section
-	if self.ShowHeader {
-		headerLines := make([][]string, len(self.Data.Headers))
+	if p.ShowHeader {
+		headerLines := make([][]string, len(p.Data.Headers))
 		maxHeaderHeight := 1
-		for i := self.ColOffset; i < len(self.Data.Headers); i++ {
-			w := self.Data.ColWidths[i] - 1
-			lines := wrapHeader(self.Data.Headers[i], w)
+		for i := p.ColOffset; i < len(p.Data.Headers); i++ {
+			w := p.Data.ColWidths[i] - 1
+			lines := wrapHeader(p.Data.Headers[i], w)
 			headerLines[i] = lines
 			if len(lines) > maxHeaderHeight {
 				maxHeaderHeight = len(lines)
@@ -396,15 +396,15 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 		}
 
 		// Render multi-line header
-		for hLine := 0; hLine < maxHeaderHeight && y < self.Inner.Max.Y; hLine++ {
-			currX := self.Inner.Min.X
+		for hLine := 0; hLine < maxHeaderHeight && y < p.Inner.Max.Y; hLine++ {
+			currX := p.Inner.Min.X
 			currX = drawCellBorder(y, currX)
 
 			// Row number header cell
-			if self.ShowRowNums {
-				rw := self.rowNumWidth()
-				if currX+rw >= self.Inner.Max.X {
-					buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+			if p.ShowRowNums {
+				rw := p.rowNumWidth()
+				if currX+rw >= p.Inner.Max.X {
+					buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(p.Inner.Max.X-1, y))
 				} else {
 					style := ui.NewStyle(ui.ColorYellow, ui.ColorClear, ui.ModifierBold)
 					val := ""
@@ -417,10 +417,10 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 				}
 			}
 
-			for i := self.ColOffset; i < len(self.Data.Headers); i++ {
-				w := self.Data.ColWidths[i]
-				if currX+w >= self.Inner.Max.X {
-					buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+			for i := p.ColOffset; i < len(p.Data.Headers); i++ {
+				w := p.Data.ColWidths[i]
+				if currX+w >= p.Inner.Max.X {
+					buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(p.Inner.Max.X-1, y))
 					break
 				}
 
@@ -444,7 +444,7 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 			y++
 		}
 
-		if y < self.Inner.Max.Y {
+		if y < p.Inner.Max.Y {
 			drawLine(y, "├", "┼", "┤", "─", drawWidths, 0)
 			y++
 		}
@@ -452,15 +452,15 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 
 	// Data rows
 	lastIdx := -1
-	for i := self.RowOffset; i < len(self.Data.Rows) && y < self.Inner.Max.Y-1; i++ {
-		currX := self.Inner.Min.X
+	for i := p.RowOffset; i < len(p.Data.Rows) && y < p.Inner.Max.Y-1; i++ {
+		currX := p.Inner.Min.X
 		currX = drawCellBorder(y, currX)
 
 		// Row number cell
-		if self.ShowRowNums {
-			rw := self.rowNumWidth()
-			if currX+rw >= self.Inner.Max.X {
-				buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+		if p.ShowRowNums {
+			rw := p.rowNumWidth()
+			if currX+rw >= p.Inner.Max.X {
+				buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(p.Inner.Max.X-1, y))
 				lastIdx = i
 				y++
 				continue
@@ -472,17 +472,17 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 			currX = drawCellBorder(y, currX)
 		}
 
-		for colIdx := self.ColOffset; colIdx < len(self.Data.Rows[i]); colIdx++ {
-			w := self.Data.ColWidths[colIdx]
-			if currX+w >= self.Inner.Max.X {
-				buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(self.Inner.Max.X-1, y))
+		for colIdx := p.ColOffset; colIdx < len(p.Data.Rows[i]); colIdx++ {
+			w := p.Data.ColWidths[colIdx]
+			if currX+w >= p.Inner.Max.X {
+				buf.SetString(ellipsis, ui.NewStyle(ui.ColorRed), image.Pt(p.Inner.Max.X-1, y))
 				break
 			}
 
-			val := self.Data.Rows[i][colIdx]
+			val := p.Data.Rows[i][colIdx]
 			style := ui.NewStyle(ui.ColorWhite)
 
-			if self.Data.IsNumCol[colIdx] {
+			if p.Data.IsNumCol[colIdx] {
 				if isNumeric(val) {
 					val = formatCommas(val)
 					style = ui.NewStyle(ui.ColorGreen)
@@ -498,36 +498,36 @@ func (self *TsvPager) Draw(buf *ui.Buffer) {
 
 		lastIdx = i
 		y++
-		if y < self.Inner.Max.Y-1 {
-			if i < len(self.Data.Rows)-1 {
+		if y < p.Inner.Max.Y-1 {
+			if i < len(p.Data.Rows)-1 {
 				drawLine(y, "├", "┼", "┤", "─", drawWidths, 0)
 				y++
 			}
 		}
 	}
 
-	if lastIdx == len(self.Data.Rows)-1 && self.Data.FullyLoaded && y < self.Inner.Max.Y-1 {
+	if lastIdx == len(p.Data.Rows)-1 && p.Data.FullyLoaded && y < p.Inner.Max.Y-1 {
 		drawLine(y, "╰", "┴", "╯", "─", drawWidths, 0)
 	}
 
 	// Status bar
 	headerState := "ON"
-	if !self.ShowHeader {
+	if !p.ShowHeader {
 		headerState = "OFF"
 	}
 	rowNumState := "OFF"
-	if self.ShowRowNums {
+	if p.ShowRowNums {
 		rowNumState = "ON"
 	}
 	status := fmt.Sprintf(" [Row %d/%d, Col %d/%d] [H]Header:%s [N]RowNum:%s [q]Quit ",
-		self.RowOffset+1, len(self.Data.Rows), self.ColOffset+1, len(self.Data.Headers),
+		p.RowOffset+1, len(p.Data.Rows), p.ColOffset+1, len(p.Data.Headers),
 		headerState, rowNumState)
-	if !self.Data.FullyLoaded {
+	if !p.Data.FullyLoaded {
 		status = fmt.Sprintf(" [Row %d/%d+, Col %d/%d] [H]Header:%s [N]RowNum:%s (Loading...) ",
-			self.RowOffset+1, len(self.Data.Rows), self.ColOffset+1, len(self.Data.Headers),
+			p.RowOffset+1, len(p.Data.Rows), p.ColOffset+1, len(p.Data.Headers),
 			headerState, rowNumState)
 	}
-	buf.SetString(status, ui.NewStyle(ui.ColorBlack, ui.ColorWhite), image.Pt(self.Inner.Min.X, self.Max.Y-1))
+	buf.SetString(status, ui.NewStyle(ui.ColorBlack, ui.ColorWhite), image.Pt(p.Inner.Min.X, p.Max.Y-1))
 }
 
 func runTSVPager(filename string) {

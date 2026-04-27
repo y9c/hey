@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 
+	"sync/atomic"
+
 	"github.com/liamg/tml"
 	"github.com/spf13/cobra"
 )
@@ -93,11 +95,11 @@ func init() {
 func processSAMStdin() {
 	interruptChan := make(chan os.Signal, 1)
 	signal.Notify(interruptChan, syscall.SIGINT, syscall.SIGTERM)
-	continueProcessing := true
+	continueProcessing := int32(1)
 
 	go func() {
 		<-interruptChan
-		continueProcessing = false
+		atomic.StoreInt32(&continueProcessing, 0)
 	}()
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -114,15 +116,18 @@ func processSAMStdin() {
 		markChar = []rune(knownMutationMark)[0]
 	}
 
-	for continueProcessing && scanner.Scan() {
+	for atomic.LoadInt32(&continueProcessing) == 1 && scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "@") {
 			continue
 		}
+		if atomic.LoadInt32(&continueProcessing) == 0 {
+			break
+		}
 
 		fields := strings.Fields(line)
 		if len(fields) < 11 {
-			if continueProcessing {
+			if atomic.LoadInt32(&continueProcessing) == 1 {
 				fmt.Fprintln(os.Stderr, "Skipping invalid SAM record (less than 11 fields):", line)
 			}
 			continue
@@ -157,7 +162,7 @@ func processSAMStdin() {
 		if filterForward || filterReverse {
 			flag, err := strconv.Atoi(flagStr)
 			if err != nil {
-				if continueProcessing {
+				if atomic.LoadInt32(&continueProcessing) == 1 {
 					fmt.Fprintf(os.Stderr, "Skipping invalid SAM record (invalid flag %s): %s\n", flagStr, line)
 				}
 				continue
@@ -202,31 +207,30 @@ func processSAMStdin() {
 
 		refSeq, alignedSeq, markers, err := samToPairwise(seq, qual, qualityCutoff, cigar, mdTagForAlignment, useKnownMutation, knownRefBase, knownAltBase, markChar)
 		if err != nil {
-			if continueProcessing {
+			if atomic.LoadInt32(&continueProcessing) == 1 {
 				// Suppress error for potentially truncated final lines if interrupted
 				// fmt.Fprintf(os.Stderr, "Error processing read %s: %v\n", readName, err)
 			}
 			continue
 		}
 
-		if continueProcessing {
-			// tml.Printf("<darkgrey><italic>%s\t%s\t%s\t%s\t%s\t%s</italic></darkgrey>\n", readName, flagStr, refName, pos, cigar, outputTagsString)
+		if atomic.LoadInt32(&continueProcessing) == 1 {
 			tml.Printf("<darkgrey><italic>%s %s %s %s %s %s</italic></darkgrey>\n", readName, flagStr, refName, pos, cigar, outputTagsString)
-			tml.Printf(alignedSeq + "\n")
+			fmt.Println(tml.Sprintf("%s", alignedSeq))
 			fmt.Println(markers)
-			tml.Printf(refSeq + "\n")
+			fmt.Println(tml.Sprintf("%s", refSeq))
 			fmt.Println()
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		if continueProcessing {
+		if atomic.LoadInt32(&continueProcessing) == 1 {
 			fmt.Fprintln(os.Stderr, "Error reading standard input:", err)
 		}
 	}
 
-	if !continueProcessing {
-		tml.Fprintf(os.Stderr, "<yellow><bold>\nSignal received. Finishing current record and exiting.</bold></yellow>\n")
+	if atomic.LoadInt32(&continueProcessing) == 0 {
+		tml.Fprintln(os.Stderr, "<yellow><bold>\nSignal received. Finishing current record and exiting.</bold></yellow>")
 	}
 }
 
@@ -663,9 +667,17 @@ func applyColor(builder *strings.Builder, base byte, shouldHighlight bool, lowQu
 			builder.WriteByte(base)
 		}
 	case 'N', 'n':
-		builder.WriteString(tml.Sprintf("<darkgrey>%c</darkgrey>", base))
+		if lowQuality {
+			builder.WriteByte(base)
+		} else {
+			builder.WriteString(tml.Sprintf("<darkgrey>%c</darkgrey>", base))
+		}
 	case '.':
-		builder.WriteString(tml.Sprintf("<darkgrey>%c</darkgrey>", base))
+		if lowQuality {
+			builder.WriteByte(base)
+		} else {
+			builder.WriteString(tml.Sprintf("<darkgrey>%c</darkgrey>", base))
+		}
 	default:
 		builder.WriteByte(base)
 	}

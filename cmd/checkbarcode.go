@@ -338,7 +338,10 @@ func extractBarcodeFromHeaderGo(headerLine string) (string, bool) {
 }
 
 func getBarcodeFromFastqGo(fastqPath string, recordsToCheck int) string {
-	linesToCheck := recordsToCheck * 4
+	if recordsToCheck <= 0 {
+		return "Invalid record count"
+	}
+	linesToCheck := int64(recordsToCheck) * 4
 	file, err := os.Open(fastqPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -360,7 +363,8 @@ func getBarcodeFromFastqGo(fastqPath string, recordsToCheck int) string {
 		reader = gzReader
 	}
 	scanner := bufio.NewScanner(reader)
-	lineCounter := 0
+	scanner.Buffer(make([]byte, 512*1024), 10*1024*1024)
+	lineCounter := int64(0)
 	foundBarcodes := []string{}
 	for scanner.Scan() {
 		lineCounter++

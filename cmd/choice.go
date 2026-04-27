@@ -17,8 +17,6 @@ import (
 	// Import for colored output
 	color "github.com/fatih/color"
 
-	// Import for width calculation
-	"github.com/golang/text/width"
 	"github.com/spf13/cobra"
 )
 
@@ -126,7 +124,6 @@ func randomMember(items []string) {
 	fmt.Println("\n--- Selection Result ---") // Add separator after UI closes
 
 	// Perform the definitive random selection
-	rand.Seed(time.Now().UnixNano()) // Re-seed just in case
 	selectedIndex := rand.Intn(len(items))
 	selectedItem := items[selectedIndex]
 
@@ -147,24 +144,6 @@ func randomMember(items []string) {
 	}
 	t.Render()
 	fmt.Println() // Add a final newline
-}
-
-// getWidthUTF8String calculates the display width of a string, accounting for CJK characters.
-func getWidthUTF8String(s string) int {
-	size := 0
-	props := width.Properties{}
-	for _, runeValue := range s {
-		props = width.LookupRune(runeValue)
-		switch props.Kind() {
-		case width.EastAsianWide, width.EastAsianFullwidth:
-			size += 2
-		case width.EastAsianAmbiguous:
-			size += 1
-		default:
-			size += 1
-		}
-	}
-	return size
 }
 
 // getMaxValueOfMap finds the maximum integer value in a map[string]int.
@@ -296,8 +275,6 @@ func showUI(items []string) {
 			case "<Resize>":
 				payload := e.Payload.(ui.Resize)
 				termWidth = payload.Width
-				termWidth, termHeight = ui.TerminalDimensions() // Update both
-				ui.Clear()
 				// Update gauges immediately with new width, respect animationFinished flag
 				if !animationFinished {
 					animationFinished = updateGauges(termWidth)

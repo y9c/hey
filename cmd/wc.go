@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -87,11 +85,14 @@ func processFile(filePath string) {
 
 	// Count words and characters if corresponding flags are set
 	if wordFlag || charFlag {
-		reader = resetReader(filePath)
-		if reader == nil {
-			return // Skip further processing if reader reset fails
+		innerReader, closer := resetReader(filePath)
+		if innerReader == nil {
+			return
 		}
-		wordCount, charCount = countWordsAndChars(reader)
+		wordCount, charCount = countWordsAndChars(innerReader)
+		if closer != nil {
+			closer.Close()
+		}
 	}
 
 	// Output results
@@ -109,42 +110,22 @@ func processFile(filePath string) {
 }
 
 func quickCountLines(reader io.Reader) int {
-	const bufferSize = 16 * 1024
+	const bufferSize = 64 * 1024
 	buffer := make([]byte, bufferSize)
 
 	totalLines := 0
-	var wg sync.WaitGroup
-	lineCountCh := make(chan int, runtime.NumCPU())
-
-	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			localCount := 0
-			for {
-				n, err := reader.Read(buffer)
-				if n > 0 {
-					localCount += countLinesInBuffer(buffer[:n])
-				}
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					fmt.Printf("Error reading file: %v\n", err)
-					return
-				}
-			}
-			lineCountCh <- localCount
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(lineCountCh)
-	}()
-
-	for count := range lineCountCh {
-		totalLines += count
+	for {
+		n, err := reader.Read(buffer)
+		if n > 0 {
+			totalLines += countLinesInBuffer(buffer[:n])
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
+			break
+		}
 	}
 
 	return totalLines
@@ -188,19 +169,35 @@ func countWordsAndChars(reader io.Reader) (int, int) {
 	return wordCount, charCount
 }
 
-func resetReader(filePath string) io.Reader {
+func resetReader(filePath string) (io.Reader, io.Closer) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		fmt.Printf("Error reopening file %s: %v\n", filePath, err)
-		return nil
+		return nil, nil
 	}
 	if strings.HasSuffix(filePath, ".gz") {
 		gzReader, err := gzip.NewReader(file)
 		if err != nil {
+			file.Close()
 			fmt.Printf("Error reading gzip file %s: %v\n", filePath, err)
-			return nil
+			return nil, nil
 		}
-		return gzReader
+		return gzReader, &multiCloser{gzReader, file}
 	}
-	return file
+	return file, file
+}
+
+type multiCloser struct {
+	a, b io.Closer
+}
+
+func (m *multiCloser) Close() error {
+	var err error
+	if e := m.a.Close(); e != nil {
+		err = e
+	}
+	if e := m.b.Close(); e != nil {
+		return e
+	}
+	return err
 }

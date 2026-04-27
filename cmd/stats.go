@@ -47,6 +47,7 @@ func transposeMatrix(filenames []string) {
 	// Read and process each file
 	for _, fileName := range filenames {
 		var input io.Reader
+		var fileCloser io.Closer
 
 		if fileName == "-" {
 			input = os.Stdin
@@ -56,17 +57,18 @@ func transposeMatrix(filenames []string) {
 				fmt.Printf("Error opening file %s: %v\n", fileName, err)
 				return
 			}
-			defer file.Close()
 
 			if strings.HasSuffix(fileName, ".gz") {
 				gzipReader, err := gzip.NewReader(file)
 				if err != nil {
+					file.Close()
 					fmt.Printf("Error opening gzip file %s: %v\n", fileName, err)
 					return
 				}
-				defer gzipReader.Close()
+				fileCloser = gzipReader
 				input = gzipReader
 			} else {
+				fileCloser = file
 				input = file
 			}
 		}
@@ -87,6 +89,9 @@ func transposeMatrix(filenames []string) {
 					rowKeySeen[rowKey] = true
 				}
 			}
+		}
+		if fileCloser != nil {
+			fileCloser.Close()
 		}
 	}
 
