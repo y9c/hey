@@ -78,9 +78,9 @@ func tabsToSpaces(lines []string) []string {
 func calculateMaxWidth(lines []string) int {
 	w := 0
 	for _, l := range lines {
-		len := utf8.RuneCountInString(l)
-		if len > w {
-			w = len
+		rw := utf8.RuneCountInString(l)
+		if rw > w {
+			w = rw
 		}
 	}
 

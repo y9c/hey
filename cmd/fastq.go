@@ -129,7 +129,7 @@ func renderFASTQ(filename string) {
 	}
 
 	interruptChan := make(chan os.Signal, 1)
-	signal.Notify(interruptChan, syscall.SIGINT)
+	signal.Notify(interruptChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(interruptChan)
 
 	scanner := bufio.NewScanner(reader)

@@ -129,19 +129,29 @@ func formatValue(value string) string {
 		} else if scaleToM {
 			return fmt.Sprintf("%.1fM", num/1e6) // Scale to per million
 		} else {
-			return formatWithCommas(int(num)) // Default: add commas
+			return formatWithCommas(num) // Default: add commas
 		}
 	}
 	return value
 }
 
-func formatWithCommas(num int) string {
-	str := strconv.Itoa(num)
+func formatWithCommas(num float64) string {
+	neg := num < 0
+	if neg {
+		num = -num
+	}
+	str := strconv.FormatFloat(num, 'f', -1, 64)
 	n := len(str)
 	if n <= 3 {
+		if neg {
+			return "-" + str
+		}
 		return str
 	}
 	var result strings.Builder
+	if neg {
+		result.WriteByte('-')
+	}
 	for i, c := range str {
 		if (n-i)%3 == 0 && i > 0 {
 			result.WriteRune(',')
