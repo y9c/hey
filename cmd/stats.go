@@ -141,22 +141,30 @@ func formatWithCommas(num float64) string {
 		num = -num
 	}
 	str := strconv.FormatFloat(num, 'f', -1, 64)
-	n := len(str)
-	if n <= 3 {
+	parts := strings.SplitN(str, ".", 2)
+	intPart := parts[0]
+
+	n := len(intPart)
+	if n <= 3 && len(parts) == 1 {
 		if neg {
 			return "-" + str
 		}
 		return str
 	}
+
 	var result strings.Builder
 	if neg {
 		result.WriteByte('-')
 	}
-	for i, c := range str {
+	for i, c := range intPart {
 		if (n-i)%3 == 0 && i > 0 {
 			result.WriteRune(',')
 		}
 		result.WriteRune(c)
+	}
+	if len(parts) > 1 {
+		result.WriteRune('.')
+		result.WriteString(parts[1])
 	}
 	return result.String()
 }

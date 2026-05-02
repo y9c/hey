@@ -11,7 +11,9 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"path/filepath"
 	"runtime/debug"
 	"sort"
@@ -291,7 +293,7 @@ func init() {
 func openURL(urlBase, fileBase, token string) string {
 	path := "/"
 	if fileBase != "" {
-		path = "/" + fileBase
+		path = "/" + url.PathEscape(fileBase)
 	}
 	return fmt.Sprintf("http://%s%s?token=%s", urlBase, path, token)
 }
@@ -448,7 +450,7 @@ func serveFiles(urlBase, fileDir, fileBase, token string) error {
 		}
 		reader, err := r.MultipartReader()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Bad request: expected multipart/form-data", http.StatusBadRequest)
 			return
 		}
 		absDir, absErr := filepath.Abs(fileDir)
@@ -568,7 +570,8 @@ func serveFiles(urlBase, fileDir, fileBase, token string) error {
 	defer listener.Close()
 
 	actualURLBase := urlBase
-	if _, port, err := net.SplitHostPort(listener.Addr().String()); err == nil && inputPort == "0" {
+	listenPort, _ := strconv.Atoi(inputPort)
+	if _, port, err := net.SplitHostPort(listener.Addr().String()); err == nil && listenPort == 0 {
 		actualURLBase = net.JoinHostPort(inputAddress, port)
 	}
 

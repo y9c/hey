@@ -284,7 +284,7 @@ func printQuality(q string, qs *readQualStats) {
 	display := q
 	trimmed := false
 	maxDisplay := fastqCompactLen
-	if maxDisplay > 0 && len(q) > maxDisplay-3 {
+	if maxDisplay > 3 && len(q) > maxDisplay-3 {
 		display = q[:maxDisplay-3]
 		trimmed = true
 	}

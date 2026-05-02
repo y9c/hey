@@ -263,7 +263,9 @@ func showUI(items []string) {
 
 	// Event handling loop
 	uiEvents := ui.PollEvents()
-	ticker := time.NewTicker(time.Millisecond * 150).C
+	animTicker := time.NewTicker(time.Millisecond * 150)
+	defer animTicker.Stop()
+	ticker := animTicker.C
 	animationFinished := false // Flag to track if animation stopped
 
 	for {

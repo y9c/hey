@@ -344,8 +344,10 @@ func parseMDTag(mdTag string) ([]MDTagEntry, error) {
 				if err := addNumEntry(); err != nil {
 					return nil, err
 				}
-			case "change":
-				return nil, fmt.Errorf("MD tag cannot end immediately after a mismatch base")
+		case "change":
+			if err := addMismatchEntry(); err != nil {
+				return nil, err
+			}
 			case "del":
 				if err := addDelEntry(); err != nil {
 					return nil, err
