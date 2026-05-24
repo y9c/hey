@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 )
@@ -74,24 +75,20 @@ func processFile(filePath string) {
 
 	lineCount, wordCount, charCount := 0, 0, 0
 
-	// Use appropriate method for line counting
-	if lineFlag || (!lineFlag && !wordFlag && !charFlag) {
+	if wordFlag || charFlag {
+		// Single-pass to count lines, words, and characters
+		var err error
+		lineCount, wordCount, charCount, err = countStats(reader)
+		if err != nil {
+			fmt.Printf("Error counting stats for file %s: %v\n", filePath, err)
+			return
+		}
+	} else {
+		// Optimized line count only
 		if isGzip {
 			lineCount = countLinesWithScanner(reader)
 		} else {
 			lineCount = quickCountLines(reader)
-		}
-	}
-
-	// Count words and characters if corresponding flags are set
-	if wordFlag || charFlag {
-		innerReader, closer := resetReader(filePath)
-		if innerReader == nil {
-			return
-		}
-		wordCount, charCount = countWordsAndChars(innerReader)
-		if closer != nil {
-			closer.Close()
 		}
 	}
 
@@ -153,51 +150,26 @@ func countLinesInBuffer(buffer []byte) int {
 	return count
 }
 
-func countWordsAndChars(reader io.Reader) (int, int) {
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(bufio.ScanWords)
-
-	wordCount, charCount := 0, 0
-	for scanner.Scan() {
-		word := scanner.Text()
-		wordCount++
-		charCount += len(word)
-	}
-	if err := scanner.Err(); err != nil {
-		fmt.Printf("Error scanning file: %v\n", err)
-	}
-	return wordCount, charCount
-}
-
-func resetReader(filePath string) (io.Reader, io.Closer) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		fmt.Printf("Error reopening file %s: %v\n", filePath, err)
-		return nil, nil
-	}
-	if strings.HasSuffix(filePath, ".gz") {
-		gzReader, err := gzip.NewReader(file)
+func countStats(reader io.Reader) (lines int, words int, chars int, err error) {
+	br := bufio.NewReader(reader)
+	inWord := false
+	for {
+		r, _, err := br.ReadRune()
 		if err != nil {
-			file.Close()
-			fmt.Printf("Error reading gzip file %s: %v\n", filePath, err)
-			return nil, nil
+			if err == io.EOF {
+				return lines, words, chars, nil
+			}
+			return lines, words, chars, err
 		}
-		return gzReader, &multiCloser{gzReader, file}
+		chars++
+		if r == '\n' {
+			lines++
+		}
+		if unicode.IsSpace(r) {
+			inWord = false
+		} else if !inWord {
+			inWord = true
+			words++
+		}
 	}
-	return file, file
-}
-
-type multiCloser struct {
-	a, b io.Closer
-}
-
-func (m *multiCloser) Close() error {
-	var err error
-	if e := m.a.Close(); e != nil {
-		err = e
-	}
-	if e := m.b.Close(); e != nil {
-		return e
-	}
-	return err
 }

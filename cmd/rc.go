@@ -35,18 +35,22 @@ func init() {
 	rootCmd.AddCommand(dnaRcCmd)
 }
 
-func processSequences(input io.Reader) {
-	complements := map[rune]rune{
-		'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C',
-		'M': 'K', 'K': 'M', 'R': 'Y', 'Y': 'R',
-		'W': 'W', 'S': 'S', 'B': 'V', 'V': 'B',
-		'D': 'H', 'H': 'D', 'N': 'N',
-	}
+var dnaComplements = map[rune]rune{
+	'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C',
+	'M': 'K', 'K': 'M', 'R': 'Y', 'Y': 'R',
+	'W': 'W', 'S': 'S', 'B': 'V', 'V': 'B',
+	'D': 'H', 'H': 'D', 'N': 'N',
+	'a': 't', 't': 'a', 'c': 'g', 'g': 'c',
+	'm': 'k', 'k': 'm', 'r': 'y', 'y': 'r',
+	'w': 'w', 's': 's', 'b': 'v', 'v': 'b',
+	'd': 'h', 'h': 'd', 'n': 'n',
+}
 
+func processSequences(input io.Reader) {
 	scanner := bufio.NewScanner(input)
 	for scanner.Scan() {
 		sequence := scanner.Text()
-		reverseComp := reverseComplement(sequence, complements)
+		reverseComp := reverseComplement(sequence, dnaComplements)
 		fmt.Println(reverseComp)
 	}
 }
@@ -55,10 +59,15 @@ func reverseComplement(sequence string, complements map[rune]rune) string {
 	var revComp strings.Builder
 	revComp.Grow(len(sequence))
 	for i := len(sequence) - 1; i >= 0; i-- {
-		if comp, exists := complements[rune(sequence[i])]; exists {
+		char := rune(sequence[i])
+		if comp, exists := complements[char]; exists {
 			revComp.WriteRune(comp)
 		} else {
-			revComp.WriteRune('N') // Default for unrecognized characters
+			if char >= 'a' && char <= 'z' {
+				revComp.WriteRune('n') // Default for unrecognized lowercase characters
+			} else {
+				revComp.WriteRune('N') // Default for unrecognized uppercase/other characters
+			}
 		}
 	}
 	return revComp.String()
